@@ -61,6 +61,9 @@
   const bannerImg = new Image()
   bannerImg.src = "Assets/Banner.png"
 
+  const buttonImg = new Image()
+  buttonImg.src = "Assets/button.png"
+
   const background = new Image()
   background.src = "Assets/Background1/Battleground1.png"
 
@@ -88,7 +91,17 @@
     const r = canvas.getBoundingClientRect()
     const x = e.clientX - r.left
     const y = e.clientY - r.top
-    if (isPointInPolygon({ x, y }, buttonZones[0])) {
+    if (showHexagons && x >= canvas.width - 120 && y <= 80) {
+      const payload = Object.entries(players).map(([id, p]) => ({
+        id,
+        character: p.character
+      }))
+      sessionStorage.setItem("fighters", JSON.stringify(payload))
+      sessionStorage.setItem("playerCount", payload.length)
+      location.href = "game.html"
+    }
+    const p = { x, y }
+    if (isPointInPolygon(p, buttonZones[0])) {
       showHexagons = true
       setupHexagons()
     }
@@ -101,13 +114,16 @@
         players[id] = { hex: centerIndex }
         return
       }
-      if (players[id]) {
-        const player = players[id]
-        const current = player.hex
-        if (data.movement.includes(key)) {
-          const moveRight = data.movement.indexOf(key) === 1
-          const next = moveRight ? (current + 1) % allHexagons.length : (current - 1 + allHexagons.length) % allHexagons.length
-          players[id].hex = next
+      const player = players[id]
+      if (player && data.movement.includes(key)) {
+        const moveRight = data.movement.indexOf(key) === 1
+        const next = moveRight ? (player.hex + 1) % allHexagons.length : (player.hex - 1 + allHexagons.length) % allHexagons.length
+        players[id].hex = next
+        if (next === centerIndex) {
+          delete players[id]
+        } else {
+          const sprite = characterSprites[next - 1]
+          players[id].character = sprite?.name || ""
         }
       }
     })
@@ -143,7 +159,7 @@
     for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
       let xi = poly[i].x, yi = poly[i].y
       let xj = poly[j].x, yj = poly[j].y
-      let intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)
+      let intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)
       if (intersect) inside = !inside
     }
     return inside
@@ -181,28 +197,28 @@
     ctx.stroke()
   }
 
-function drawBanners() {
-  const ids = Object.keys(players)
-  const centerX = canvas.width / 2
-  const margin = 260
-  ids.forEach((id, i) => {
-    const p = players[id]
-    if (p.hex === null || p.hex === undefined || p.hex === centerIndex) return
-    const offset = (i - (ids.length - 1) / 2) * margin
-    const x = centerX + offset - 100
-    const y = 30
-    ctx.drawImage(bannerImg, x, y, 200, 70)
-    ctx.font = "24px FightFont"
-    ctx.textAlign = "center"
-    ctx.lineWidth = 4
-    ctx.strokeStyle = "black"
-    ctx.strokeText(`Player ${i + 1}:`, x + 100, y + 28)
-    ctx.strokeText(characterSprites[p.hex - 1].name.toUpperCase(), x + 100, y + 58)
-    ctx.fillStyle = "white"
-    ctx.fillText(`Player ${i + 1}:`, x + 100, y + 28)
-    ctx.fillText(characterSprites[p.hex - 1].name.toUpperCase(), x + 100, y + 58)
-  })
-}
+  function drawBanners() {
+    const ids = Object.keys(players)
+    const centerX = canvas.width / 2
+    const margin = 260
+    ids.forEach((id, i) => {
+      const p = players[id]
+      if (p.hex === null || p.hex === undefined || p.hex === centerIndex) return
+      const offset = (i - (ids.length - 1) / 2) * margin
+      const x = centerX + offset - 100
+      const y = 30
+      ctx.drawImage(bannerImg, x, y, 200, 70)
+      ctx.font = "24px FightFont"
+      ctx.textAlign = "center"
+      ctx.lineWidth = 4
+      ctx.strokeStyle = "black"
+      ctx.strokeText(`Player ${i + 1}:`, x + 100, y + 28)
+      ctx.strokeText((p.character || "").toUpperCase(), x + 100, y + 58)
+      ctx.fillStyle = "white"
+      ctx.fillText(`Player ${i + 1}:`, x + 100, y + 28)
+      ctx.fillText((p.character || "").toUpperCase(), x + 100, y + 58)
+    })
+  }
 
   function loop(ts = 0) {
     ctx.clearRect(0, 0, canvas.width, canvas.height)
@@ -216,7 +232,6 @@ function drawBanners() {
 
       allHexagons.forEach((hex, i) => {
         if (i !== centerIndex) {
-          const selected = Object.values(players).some(p => p.hex === i)
           drawHex(hex, "black")
           drawCharacter(spriteImages[i - 1], hex)
           Object.entries(players).forEach(([id, p]) => {
@@ -241,6 +256,8 @@ function drawBanners() {
     } else {
       if (buttonsImage.complete) ctx.drawImage(buttonsImage, 400, 0, 600, 600)
     }
+
+    ctx.drawImage(buttonImg, canvas.width - 120, 20, 90, 60)
 
     requestAnimationFrame(loop)
   }
