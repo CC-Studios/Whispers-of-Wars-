@@ -49,7 +49,10 @@
           let koDisplayTime = 0;
           let gameOver = false;
         
-          const playerAmount = 5;
+          // Get player selections from sessionStorage
+          const selectedFighters = JSON.parse(sessionStorage.getItem("fighters") || "[]");
+          // Determine playerAmount based on the number of selected fighters
+          const playerAmount = selectedFighters.length;
         
           function resizeCanvas() {
             canvas.width = window.innerWidth;
@@ -624,12 +627,14 @@
             return true;
           }
         
-          // Dynamically create players based on playerAmount
+          // Dynamically create players based on selectedFighters from sessionStorage
           const players = [];
-          if (playerAmount >= 1) players.push(new Player("Assasin", canvas.width / (playerAmount + 1)));
-          if (playerAmount >= 2) players.push(new Player("Wu", canvas.width / (playerAmount + 1) * 2));
-          if (playerAmount >= 3) players.push(new Player("darkrai", canvas.width / (playerAmount + 1) * 3));
-          if (playerAmount >= 4) players.push(new Player("Reaper", canvas.width / (playerAmount + 1) * 4));
+          if (playerAmount > 0) {
+              selectedFighters.forEach((fighter, index) => {
+                  const xPos = canvas.width / (playerAmount + 1) * (index + 1);
+                  players.push(new Player(fighter.character, xPos));
+              });
+          }
 
           let activeDebugPlayer = null;
         
@@ -827,13 +832,11 @@
             staminaImg.onerror = () => { resolve(); };
           }));
         
+          // Load images only for the characters that will be present in the game
+          const charactersToLoad = new Set(selectedFighters.map(f => f.character));
           for (const charName in animations) {
-            for (const animName in animations[charName]) {
-              // Only load images for characters that will be in the game
-              if ( (playerAmount >= 1 && charName === "Assasin") ||
-                   (playerAmount >= 2 && charName === "Wu") ||
-                   (playerAmount >= 3 && charName === "darkrai") ||
-                   (playerAmount >= 4 && charName === "Reaper") ) {
+            if (charactersToLoad.has(charName)) {
+              for (const animName in animations[charName]) {
                   const imageKey = `${charName}_${animName}`;
                   const img = new Image();
                   img.src = loadSS(charName, animName);
@@ -851,6 +854,10 @@
               assetsLoaded = true;
               loop();
           }).catch(error => {
+              // Log error but still try to run the loop with loaded assets
+              console.error("Error loading assets:", error);
+              assetsLoaded = true; // Still try to proceed
+              loop();
           });
         
         function drawCountdown() {
@@ -938,7 +945,7 @@
           const playersWithLives = players.filter(p => p.lives > 0);
           const alivePlayersCount = playersWithLives.length;
         
-          if (alivePlayersCount <= 1 && !gameOver) {
+          if (alivePlayersCount <= 1 && !gameOver && countdownTime <= 0) { // Check countdown before ending game
             gameOver = true;
             koDisplayTime = performance.now();
           }
@@ -965,11 +972,12 @@
         
             players.forEach(player => player.draw(cameraX));
             
-            // Draw bars only for existing players
-            if (players[0]) drawBars(40, 40, players[0], false);
-            if (players[1]) drawBars(40, 40, players[1], true);
-            if (players[2]) drawBars(40, 260, players[2], false);
-            if (players[3]) drawBars(40, 260, players[3], true);
+            // Draw bars dynamically based on actual player count
+            players.forEach((player, index) => {
+                const isRightAligned = index % 2 !== 0; // Alternates left/right alignment
+                const yOffset = Math.floor(index / 2) * 220 + 40; // Adjusts y position for multiple pairs
+                drawBars(40, yOffset, player, isRightAligned);
+            });
         
             if (performance.now() - koDisplayTime >= 0) {
                 ctx.font = "250px FightFont, sans-serif";
@@ -1048,7 +1056,8 @@
               cameraX = 0;
           }
         
-          // Player 1 (Assasin) controls
+          // Player controls based on their index in the 'players' array
+          // Player 1 (index 0) controls: WASD + Q/E
           if (players[0]) {
             players[0].speedX = keysDown["a"] ? -players[0].spd : keysDown["d"] ? players[0].spd : 0;
             if (keysJustPressed["w"]) players[0].jump();
@@ -1056,7 +1065,7 @@
             if (keysDown["e"]) players[0].tryAtk("Attack2");
           }
         
-          // Player 2 (Wu) controls
+          // Player 2 (index 1) controls: IJKL + U/O
           if (players[1]) {
             players[1].speedX = keysDown["j"] ? -players[1].spd : keysDown["l"] ? players[1].spd : 0;
             if (keysJustPressed["i"]) players[1].jump();
@@ -1073,7 +1082,7 @@
             if (keysDown["o"]) players[1].tryAtk("Attack2");
           }
         
-          // Player 3 (Darkrai) controls
+          // Player 3 (index 2) controls: Arrow Keys + ,/.
           if (players[2]) {
             players[2].speedX = keysDown["ArrowLeft"] ? -players[2].spd : keysDown["ArrowRight"] ? players[2].spd : 0;
             if (keysJustPressed["ArrowUp"]) players[2].jump();
@@ -1137,7 +1146,7 @@
             if (keysDown["."] && !keysDown[","]) players[2].tryAtk("Attack2");
           }
         
-          // Player 4 (Reaper) controls
+          // Player 4 (index 3) controls: Numpad 4/6/8/7/9
           if (players[3]) {
             players[3].speedX = keysDown["4"] ? -players[3].spd : keysDown["6"] ? players[3].spd : 0;
             if (keysJustPressed["8"]) players[3].jump();
@@ -1163,11 +1172,12 @@
             player.draw(cameraX);
           });
         
-          // Draw bars only for existing players
-          if (players[0]) drawBars(40, 40, players[0], false);
-          if (players[1]) drawBars(40, 40, players[1], true);
-          if (players[2]) drawBars(40, 260, players[2], false);
-          if (players[3]) drawBars(40, 260, players[3], true);
+          // Draw bars dynamically based on actual player count
+          players.forEach((player, index) => {
+              const isRightAligned = index % 2 !== 0; // Alternates left/right alignment
+              const yOffset = Math.floor(index / 2) * 220 + 40; // Adjusts y position for multiple pairs
+              drawBars(40, yOffset, player, isRightAligned);
+          });
         
           function checkAllCollisions() {
             for (let i = 0; i < players.length; i++) {
