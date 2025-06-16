@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>HOME</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: black;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+    }
+    @font-face {
+      font-family: 'FightFont';
+      src: url('Fonts/Fight!.woff') format('woff');
+    }
+  </style>
+</head>
+<body>
+<canvas id="homeCanvas"></canvas>
+<script>
+(() => {
+  const canvas = document.getElementById("homeCanvas")
+  const ctx = canvas.getContext("2d")
+  ctx.imageSmoothingEnabled = false
+
+  const hexagonRadius = 80
+  const centerIndex = 0
+  let allHexagons = []
+  let showHexagons = false
+
+  const ringColors = ["#ff0033", "#00aaff", "#00ff7f", "#ff9900"]
+  const playerKeyMap = {
+    P1: { movement: ["a", "d"], join: ["w"], color: ringColors[0] },
+    P2: { movement: ["j", "l"], join: ["i"], color: ringColors[1] },
+    P3: { movement: ["arrowleft", "arrowright"], join: ["arrowup"], color: ringColors[2] },
+    P4: { movement: ["4", "6"], join: ["8"], color: ringColors[3] }
+  }
+
+  const players = {}
+
+  const characterSprites = [
+    { name: "Wu",      path: "Assets/Wu/Idle.png",      frameCount: 8,  frameWidth: 200, frameHeight: 200, row: 0, size: 3.2 },
+    { name: "Tarzan",  path: "Assets/Tarzan/Idle.png",  frameCount: 10, frameWidth: 126, frameHeight: 126, row: 0, size: 3.4 },
+    { name: "Knight",  path: "Assets/Knight/IDLE.png",  frameCount: 7,  frameWidth: 96,  frameHeight: 84,  row: 0, size: 4.0 },
+    { name: "Assasin", path: "Assets/Assasin/Idle.png", frameCount: 4,  frameWidth: 200, frameHeight: 200, row: 0, size: 2.8 },
+    { name: "Darkrai", path: "Assets/Darkdude.png",     frameCount: 6,  frameWidth: 80,  frameHeight: 80,  row: 0, size: 4.2 },
+    { name: "Reaper",  path: "Assets/Reaper.png",       frameCount: 8,  frameWidth: 80,  frameHeight: 80,  row: 0, size: 4.2 }
+  ]
+
+  const spriteImages = characterSprites.map(char => {
+    const img = new Image()
+    img.src = char.path
+    return { ...char, img }
+  })
+
+  const bannerImg = new Image()
+  bannerImg.src = "Assets/Banner.png"
+
+  const background = new Image()
+  background.src = "Assets/Background1/Battleground1.png"
+
+  const buttonsImage = new Image()
+  buttonsImage.src = "Assets/Buttons.png"
+
+  const buttonZones = [[
+    { x: 855, y: 82 }, { x: 571, y: 98 }, { x: 518, y: 151 },
+    { x: 590, y: 227 }, { x: 862, y: 205 }
+  ]]
+
+  let spriteIndex = 0
+  let spriteTimer = 0
+  const spriteDelay = 100
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth
+    canvas.height = window.innerHeight
+  }
+
+  window.addEventListener("resize", resizeCanvas)
+  resizeCanvas()
+
+  canvas.addEventListener("click", e => {
+    const r = canvas.getBoundingClientRect()
+    const x = e.clientX - r.left
+    const y = e.clientY - r.top
+    if (isPointInPolygon({ x, y }, buttonZones[0])) {
+      showHexagons = true
+      setupHexagons()
+    }
+  })
+
+  window.addEventListener("keydown", e => {
+    const key = e.key.toLowerCase()
+    Object.entries(playerKeyMap).forEach(([id, data], idx) => {
+      if (!players[id] && data.join.includes(key)) {
+        players[id] = { hex: centerIndex }
+        return
+      }
+      if (players[id]) {
+        const player = players[id]
+        const current = player.hex
+        if (data.movement.includes(key)) {
+          const moveRight = data.movement.indexOf(key) === 1
+          const next = moveRight ? (current + 1) % allHexagons.length : (current - 1 + allHexagons.length) % allHexagons.length
+          players[id].hex = next
+        }
+      }
+    })
+  })
+
+  function setupHexagons() {
+    const cx = canvas.width / 2
+    const cy = canvas.height / 2
+    const dx = hexagonRadius * Math.sqrt(3)
+    const dy = hexagonRadius * 1.5
+    allHexagons = [
+      generateHexagon(cx, cy),
+      generateHexagon(cx + dx, cy),
+      generateHexagon(cx + dx / 2, cy + dy),
+      generateHexagon(cx - dx / 2, cy + dy),
+      generateHexagon(cx - dx, cy),
+      generateHexagon(cx - dx / 2, cy - dy),
+      generateHexagon(cx + dx / 2, cy - dy)
+    ]
+  }
+
+  function generateHexagon(cx, cy) {
+    const pts = []
+    for (let i = 0; i < 6; i++) {
+      const angle = Math.PI / 3 * i + Math.PI / 6
+      pts.push({ x: cx + hexagonRadius * Math.cos(angle), y: cy + hexagonRadius * Math.sin(angle) })
+    }
+    return pts
+  }
+
+  function isPointInPolygon(p, poly) {
+    let x = p.x, y = p.y, inside = false
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      let xi = poly[i].x, yi = poly[i].y
+      let xj = poly[j].x, yj = poly[j].y
+      let intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)
+      if (intersect) inside = !inside
+    }
+    return inside
+  }
+
+  function drawCharacter(char, hex) {
+    if (!char.img.complete) return
+    const frameW = char.frameWidth, frameH = char.frameHeight
+    const frameX = (spriteIndex % char.frameCount) * frameW
+    const frameY = (char.row || 0) * frameH
+    const cx = (hex[0].x + hex[3].x) / 2
+    const cy = (hex[0].y + hex[3].y) / 2
+    const size = hexagonRadius * char.size
+    ctx.save()
+    ctx.beginPath()
+    ctx.moveTo(hex[0].x, hex[0].y)
+    for (let j = 1; j < hex.length; j++) ctx.lineTo(hex[j].x, hex[j].y)
+    ctx.closePath()
+    ctx.clip()
+    ctx.drawImage(char.img, frameX, frameY, frameW, frameH, cx - size / 2, cy - size / 2, size, size)
+    ctx.restore()
+  }
+
+  function drawHex(hex, fill = null, stroke = "#fff", strokeWidth = 3) {
+    ctx.beginPath()
+    ctx.moveTo(hex[0].x, hex[0].y)
+    for (let i = 1; i < hex.length; i++) ctx.lineTo(hex[i].x, hex[i].y)
+    ctx.closePath()
+    if (fill) {
+      ctx.fillStyle = fill
+      ctx.fill()
+    }
+    ctx.lineWidth = strokeWidth
+    ctx.strokeStyle = stroke
+    ctx.stroke()
+  }
+
+function drawBanners() {
+  const ids = Object.keys(players)
+  const centerX = canvas.width / 2
+  const margin = 260
+  ids.forEach((id, i) => {
+    const p = players[id]
+    if (p.hex === null || p.hex === undefined || p.hex === centerIndex) return
+    const offset = (i - (ids.length - 1) / 2) * margin
+    const x = centerX + offset - 100
+    const y = 30
+    ctx.drawImage(bannerImg, x, y, 200, 70)
+    ctx.font = "24px FightFont"
+    ctx.textAlign = "center"
+    ctx.lineWidth = 4
+    ctx.strokeStyle = "black"
+    ctx.strokeText(`Player ${i + 1}:`, x + 100, y + 28)
+    ctx.strokeText(characterSprites[p.hex - 1].name.toUpperCase(), x + 100, y + 58)
+    ctx.fillStyle = "white"
+    ctx.fillText(`Player ${i + 1}:`, x + 100, y + 28)
+    ctx.fillText(characterSprites[p.hex - 1].name.toUpperCase(), x + 100, y + 58)
+  })
+}
+
+  function loop(ts = 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(background, 0, 0, canvas.width, canvas.height)
+
+    if (showHexagons) {
+      if (ts - spriteTimer > spriteDelay) {
+        spriteTimer = ts
+        spriteIndex++
+      }
+
+      allHexagons.forEach((hex, i) => {
+        if (i !== centerIndex) {
+          const selected = Object.values(players).some(p => p.hex === i)
+          drawHex(hex, "black")
+          drawCharacter(spriteImages[i - 1], hex)
+          Object.entries(players).forEach(([id, p]) => {
+            if (p.hex === i) {
+              const color = playerKeyMap[id]?.color
+              drawHex(hex, null, color, 5)
+            }
+          })
+        }
+      })
+
+      const centerHex = allHexagons[centerIndex]
+      drawHex(centerHex, "black")
+      Object.entries(players).forEach(([id, p]) => {
+        if (p.hex === centerIndex) {
+          const color = playerKeyMap[id]?.color
+          drawHex(centerHex, null, color, 5)
+        }
+      })
+
+      drawBanners()
+    } else {
+      if (buttonsImage.complete) ctx.drawImage(buttonsImage, 400, 0, 600, 600)
+    }
+
+    requestAnimationFrame(loop)
+  }
+
+  requestAnimationFrame(loop)
+})()
+</script>
+</body>
+</html>

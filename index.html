@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="icon" type="image/png" href="Assets/Favicon.png" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Whispers of War</title>
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #000; }
+        canvas { display: block; background: #000; }
+        @font-face {
+          font-family: 'FightFont';
+          src: url('Fonts/Fight!.woff') format('woff');
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        (() => {
+          const canvas = document.getElementById("gameCanvas");
+          const ctx = canvas.getContext("2d");
+        
+          const BG_TILE_WIDTH = 1600;
+          const BG_TILE_HEIGHT = 800;
+          const SCALE = 4.5;
+          const HSB = 40;
+        
+          const floatingTexts = [];
+          const groundY = 695;
+          let cameraX = 0;
+        
+          let debugMode = false;
+          let pauseGame = false;
+          let pausedFrame = null;
+          let draggingEllipse = null;
+          let resizingEllipse = null;
+          let draggingHitbox = null;
+          let resizingHitbox = null;
+          let draggingSpriteOffset = null;
+          let mouseButton = null;
+          let debugMouseX = 0;
+          let debugMouseY = 0;
+          let isHKey = false;
+          let isSKey = false;
+        
+          let koDisplayTime = 0;
+          let gameOver = false;
+        
+          const playerAmount = 5;
+        
+          function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+          }
+          window.addEventListener("resize", resizeCanvas);
+          resizeCanvas();
+        
+          const bgPaths = [
+            "Assets/Background1/Battleground1.png",
+            "Assets/Background2/Battleground2.png",
+            "Assets/Background3/Battleground3.png",
+            "Assets/Background4/Battleground4.png",
+            "Assets/Background5/Battleground5.png",
+            "Assets/Background6/Battleground6.png",
+            "Assets/Background7/Battleground7.png",
+            "Assets/Background8/Battleground8.png"
+          ];
+          const bgImage = new Image();
+          bgImage.src = bgPaths[Math.floor(Math.random() * bgPaths.length)];
+        
+          const healthImg = new Image(); healthImg.src = "Assets/HealthBar.png";
+          const staminaImg = new Image(); staminaImg.src = "Assets/StaminaBar.png";
+        
+          const animations = {
+            Assasin: {
+              Idle:{frameCount:4, rowOffset:0}, Run:{frameCount:8, rowOffset:0},
+              Jump:{frameCount:2, rowOffset:0}, Fall:{frameCount:2, rowOffset:0},
+              Attack1:{frameCount:4, rowOffset:0}, Attack2:{frameCount:4, rowOffset:0},
+              TakeHit:{frameCount:3, rowOffset:0}, Death:{frameCount:7, rowOffset:0}
+            },
+            Wu: {
+              Idle:{frameCount:8, rowOffset:0}, Run:{frameCount:8, rowOffset:0},
+              Jump:{frameCount:2, rowOffset:0}, Fall:{frameCount:2, rowOffset:0},
+              Attack1:{frameCount:6, rowOffset:0}, Attack2:{frameCount:6, rowOffset:0},
+              TakeHit:{frameCount:4, rowOffset:0}, Death:{frameCount:6, rowOffset:0}
+            },
+            darkrai: {
+              Idle:{frameCount:9, rowOffset:0 * 80}, Run:{frameCount:6, rowOffset:1 * 80},
+              Attack1:{frameCount:12, rowOffset:2 * 80}, TakeHit:{frameCount:5, rowOffset:3 * 80},
+              Jump:{frameCount:1, rowOffset:4 * 80, specificFrame: 2},
+              Fall:{frameCount:1, rowOffset:4 * 80, specificFrame: 2},
+              Death:{frameCount:24, rowOffset:4 * 80}
+            },
+            Reaper: {
+                Idle: {frameCount: 8, rowOffset: 0 * 80},
+                Run: {frameCount: 8, rowOffset: 0 * 80},
+                Jump: {frameCount: 8, rowOffset: 0 * 80},
+                Fall: {frameCount: 8, rowOffset: 0 * 80},
+                Attack1: {frameCount: 8, rowOffset: 1 * 80},
+                Attack2: {frameCount: 8, rowOffset: 1 * 80},
+                TakeHit: {frameCount: 2, rowOffset: 2 * 80},
+                Death: {frameCount: 12, rowOffset: 3 * 80}
+            }
+          };
+        
+          const stats = {
+            "Assasin": {
+              "frameWidth": 200, "frameHeight": 200,
+              "at1": 5, "at2": 10, "hp": 100, "stam": 50, "spd": 7, "lives": 5,
+              "attackBoxes": [
+                { "attack": 2, "x": 138.5, "y": -172, "rx": 235, "ry": 215 },
+                { "attack": 1, "x": 150.5, "y": -141, "rx": 232, "ry": 130 }
+              ],
+              "at1SL": 1, "at2SL": 2,
+              "hitBox": { xRel: -50, yRel: -200, w: 100, h: 200 },
+              "spriteDrawOffset": { xRel: -100.55555555555557, yRel: -130 },
+              "healthregen": 0.05,
+              "staminaregen": 0.1,
+              "supurpower": false,
+              "attackdelay": 1500
+            },
+            "Wu": {
+              "frameWidth": 200, "frameHeight": 200,
+              "at1": 5, "at2": 10, "hp": 120, "stam": 50, "spd": 5, "lives": 5,
+              "attackBoxes": [
+                { "attack": 2, "x": 176.83333333333292, "y": -136, "rx": 249, "ry": 113 },
+                { "attack": 1, "x": 98.83333333333292, "y": -163, "rx": 301, "ry": 151 }
+              ],
+              "at1SL": 2, "at2SL": 3,
+              "hitBox": { xRel: -50, yRel: -200, w: 100, h: 200 },
+              "spriteDrawOffset": { xRel: -98.66666666666669, yRel: -122 },
+              "healthregen": 0.05,
+              "staminaregen": 0.1,
+              "supurpower": false,
+              "attackdelay": 1000
+            },
+            "darkrai": {
+              "frameWidth": 80, "frameHeight": 80,
+              "at1": 10, "at2": 15, "hp": 75, "stam": 30, "spd": 7, "lives": 5,
+              "attackBoxes": [
+                { "attack": 1, "x": 15.249999999999886, "y": -108, "rx": 164.0000000000001, "ry": 147 }
+              ],
+              "at1SL": 2, "at2SL": 4,
+              "hitBox": { xRel: -43.750000000000114, yRel: -138, w: 112.00000000000011, h: 137 },
+              "spriteDrawOffset": { xRel: -39.72222222222225, yRel: -65 },
+              "healthregen": 0.05,
+              "staminaregen": 0.1,
+              "supurpower": false,
+              "attackdelay": 2000
+            },
+            "Reaper": {
+                "frameWidth": 80, "frameHeight": 80,
+                "at1": 10, "at2": 15, "hp": 160, "stam": 55, "spd": 4, "lives": 5,
+                  "attackBoxes": [
+              {
+                "attack": 1,
+                "x": 46.125,
+                "y": -122,
+                "rx": 138,
+                "ry": 139
+              }
+            ],
+                "at1SL": 2, "at2SL": 3,
+              "hitBox": { xRel: -50, yRel: -260, w: 200, h: 240 },
+                "spriteDrawOffset": { xRel: -30, yRel: -70 },
+                "healthregen": 0.05,
+                "staminaregen": 0.1,
+                "supurpower": false,
+                "attackdelay": 1000
+            }
+          };
+        
+          const preloadedImages = {};
+        
+          function loadSS(name, anim) {
+            if (name === "darkrai") {
+                return `Assets/Darkdude.png`;
+            } else if (name === "Reaper") {
+                return `Assets/Reaper.png`;
+            }
+            const fixedAnim = (name === "Assasin" && anim === "TakeHit") ? "Take-hit" :
+                              (name === "Wu" && anim === "TakeHit") ? "Take Hit" : anim;
+            return `Assets/${name}/${fixedAnim}.png`;
+          }
+        
+          class Player {
+            constructor(name, x) {
+              this.originalStats = JSON.parse(JSON.stringify(stats[name]));
+              Object.assign(this, stats[name]);
+              this.targetsHitThisAttack = new Set();
+              this.name = name;
+              this.x = x;
+              this.y = groundY;
+              this.initialX = x;
+              this.speedX = 0;
+              this.health = this.hp;
+              this.stamina = this.stam;
+              this.maxHealth = this.hp;
+              this.maxStamina = this.stam;
+              this.lastActiveTime = performance.now();
+              
+              this.sht = this.frameWidth;
+              this.svt = this.frameHeight;
+              this.frameTimer = 0;
+              this.frameDur = 100;
+              this.curF = 0;
+              this.curA = "Idle";
+              this.dead = false;
+              this.animDead = false;
+              this.ss = null;
+              this.currentAnimYOffset = 0;
+              this.setA("Idle");
+              this.fLeft = false;
+              this.isJump = false;
+              this.vy = 0;
+              this.js = -10;
+              this.gr = 0.4;
+              this.lockedUntil = 0;
+              this.lastDirection = 1;
+              this.attackBoxes = JSON.parse(JSON.stringify(stats[name].attackBoxes || [])); 
+              this.hitFlag = false;
+              this.attackCooldownUntil = 0;
+              this.pendingHurtAnim = null;
+              this.isRespawning = false;
+              this.respawnTime = 0;
+        
+              this.healthregen = this.healthregen;
+              this.staminaregen = this.staminaregen;
+              this.supurpower = false;
+              this.attackdelay = this.attackdelay;
+
+              this.isSuperMode = false;
+              this.superModeToggleCooldown = 0;
+              this.superModeDeactivationTime = 0;
+
+              this.isDoubleSpeed = false;
+              this.doubleSpeedEndTime = 0;
+
+              this.jumpsUsedInAir = 0;
+            }
+        
+            setA(anim, lock = false) {
+              if (this.curA === anim || (this.dead && anim !== "Death")) return;
+              
+              let animData = animations[this.name][anim];
+              if (!animData) {
+                this.curA = "Idle";
+                animData = animations[this.name]["Idle"];
+              } else {
+                this.curA = anim;
+              }
+        
+              const imageKey = `${this.name}_${this.curA}`;
+              this.ss = preloadedImages[imageKey];
+        
+              this.frameCount = animData.frameCount;
+              this.currentAnimYOffset = animData.rowOffset || 0;
+              
+              this.curF = animData.specificFrame !== undefined ? animData.specificFrame : 0;
+              
+              this.frameTimer = 0;
+              this.animDead = anim === "Death";
+              this.lockedUntil = lock ? performance.now() + this.frameCount * this.frameDur : 0;
+            }
+        
+            tryAtk(type) {
+              const now = performance.now();
+              let actualAttackType = type;
+        
+              if ((this.name === "darkrai" || this.name === "Reaper") && type === "Attack2") {
+                actualAttackType = "Attack1";
+              }
+        
+              if (this.curA === actualAttackType || this.lockedUntil > now || now < this.attackCooldownUntil) return;
+              this.targetsHitThisAttack.clear();
+        
+              const cost = actualAttackType === "Attack1" ? this.at1SL : this.at2SL;
+              if (this.stamina >= cost) {
+                this.stamina -= cost;
+                this.hasHitDuringCurrentAttack = false;
+                this.setA(actualAttackType, true);
+                this.attackCooldownUntil = now + this.attackdelay;
+              }
+            }
+        
+            jump() {
+                if (this.dead || this.jumpsUsedInAir >= 2) return;
+        
+                if (this.y === groundY) {
+                    this.jumpsUsedInAir = 1;
+                } else {
+                    if (this.jumpsUsedInAir === 1) {
+                        this.jumpsUsedInAir = 2;
+                    } else {
+                        return;
+                    }
+                }
+                this.isJump = true;
+                this.vy = this.js;
+                this.setA("Jump", true);
+            }
+
+            updateAttackBoxes() {
+                for (const box of this.attackBoxes) {
+                    box.worldX = this.x + (this.fLeft ? -box.x : box.x);
+                    box.worldY = this.y + box.y;
+                }
+            }
+        
+            update(dt) {
+              const now = performance.now();
+        
+              this.updateAttackBoxes();
+              if (this.isRespawning && now >= this.respawnTime) {
+                this.x = this.initialX;
+                this.y = groundY;
+                this.health = this.maxHealth;
+                this.stamina = this.maxStamina;
+                this.isRespawning = false;
+                this.dead = false;
+                this.setA("Idle");
+              }
+
+              if (this.name === "darkrai" && this.isSuperMode && now >= this.superModeDeactivationTime) {
+                  this.isSuperMode = false;
+                  this.at1 = this.originalStats.at1;
+                  this.at2 = this.originalStats.at2;
+                  this.hp = this.originalStats.hp;
+                  this.health = Math.min(this.health, this.hp);
+                  this.maxHealth = this.hp;
+                  this.spd = this.originalStats.spd;
+                  this.stam = this.originalStats.stam;
+                  this.maxStamina = this.stam;
+                  this.hitBox.xRel = this.originalStats.hitBox.xRel;
+                  this.hitBox.yRel = this.originalStats.hitBox.yRel;
+                  this.hitBox.w = this.originalStats.hitBox.w;
+                  this.hitBox.h = this.originalStats.hitBox.h;
+                  this.attackBoxes.forEach((box, index) => {
+                      box.x = this.originalStats.attackBoxes[index].x;
+                      box.y = this.originalStats.attackBoxes[index].y;
+                      box.rx = this.originalStats.attackBoxes[index].rx;
+                      box.ry = this.originalStats.attackBoxes[index].ry;
+                  });
+                  floatingTexts.push(new FloatingText("MODE OFF", this.x, this.y - 100, "grey"));
+              }
+
+              if (this.name === "Reaper" && this.isDoubleSpeed && now >= this.doubleSpeedEndTime) {
+                  this.isDoubleSpeed = false;
+                  this.spd = this.originalStats.spd;
+                  floatingTexts.push(new FloatingText("SPEED OFF", this.x, this.y - 100, "grey"));
+              }
+        
+              if (pauseGame || this.dead || this.isRespawning) {
+                  if (this.animDead && this.curA === "Death") {
+                      this.frameTimer += dt;
+                      if (this.frameTimer >= this.frameDur) {
+                          this.frameTimer = 0;
+                          if (this.curF < this.frameCount - 1) {
+                              this.curF++;
+                          } else {
+                              this.animDead = false;
+                              if (this.lives <= 0) {
+                                  this.curF = this.frameCount - 1;
+                              }
+                          }
+                      }
+                  }
+                  return;
+              }
+        
+              if (this.lockedUntil > now) {
+              } else if (this.isJump && this.vy < 0) {
+                this.setA("Jump");
+              } else if (this.y < groundY) {
+                this.setA("Fall");
+              } else if (this.speedX) {
+                this.setA("Run");
+              } else {
+                this.setA("Idle");
+              }
+        
+              this.x += this.speedX;
+              this.y += this.vy;
+              this.vy += this.gr;
+        
+              if (this.y >= groundY) {
+                this.y = groundY;
+                this.isJump = false;
+                this.vy = 0;
+                this.jumpsUsedInAir = 0;
+              }
+        
+              if (this.speedX !== 0 || this.lockedUntil > now) {
+                this.lastActiveTime = now;
+              }
+        
+              if (now - this.lastActiveTime > 2000) {
+                if (this.stamina < this.maxStamina) {
+                  this.stamina += this.maxStamina * (dt / 1000) * this.staminaregen;
+                  this.stamina = Math.min(this.stamina, this.maxStamina);
+                }
+                if (this.health < this.maxHealth) {
+                  this.health += this.maxHealth * (dt / 1000) * this.healthregen;
+                  this.health = Math.min(this.health, this.maxHealth);
+                }
+              }
+        
+              const oneShot = ["Attack1", "Attack2", "TakeHit", "Death"];
+              if (animations[this.name][this.curA] && animations[this.name][this.curA].specificFrame !== undefined) {
+                  if (!oneShot.includes(this.curA)) oneShot.push(this.curA);
+              }
+        
+              this.frameTimer += dt;
+        
+              if (oneShot.includes(this.curA)) {
+                if (this.frameTimer >= this.frameDur) {
+                  this.frameTimer = 0;
+                  if (this.curF < this.frameCount - 1) {
+                    this.curF++;
+                  } else {
+                    if (animations[this.name][this.curA] && animations[this.name][this.curA].specificFrame !== undefined) {
+                    } else if (!this.dead) {
+                        this.setA("Idle");
+                    }
+                  }
+                }
+              } else if (this.frameTimer >= this.frameDur) {
+                this.frameTimer = 0;
+                this.curF = (this.curF + 1) % this.frameCount;
+              }
+        
+              if (this.speedX < 0) this.lastDirection = -1;
+              else if (this.speedX > 0) this.lastDirection = 1;
+              this.fLeft = this.lastDirection === -1;
+        
+              if (this.pendingHurtAnim && now >= this.pendingHurtAnim.startTime) {
+                  this.setA(this.pendingHurtAnim.type, true);
+                  this.pendingHurtAnim = null;
+              }
+            }
+        
+            draw(camX) {
+              if (!this.ss || !this.ss.complete) {
+                return;
+              }
+        
+              const sx = this.curF * this.sht;
+              const sy = this.currentAnimYOffset;
+        
+              let currentDrawScale = SCALE;
+              if (this.name === "darkrai" && this.isSuperMode) {
+                  currentDrawScale *= 2;
+              }
+        
+              const playerWorldXOnCanvas = this.x - camX;
+        
+              ctx.save();
+        
+              ctx.translate(playerWorldXOnCanvas, this.y);
+        
+              if (this.fLeft) {
+                  ctx.scale(-1, 1);
+              }
+        
+              ctx.drawImage(
+                  this.ss, sx, sy, this.sht, this.svt,
+                  this.spriteDrawOffset.xRel * currentDrawScale,
+                  this.spriteDrawOffset.yRel * currentDrawScale,
+                  this.sht * currentDrawScale,
+                  this.svt * currentDrawScale
+              );
+        
+              ctx.restore();
+              
+              if (debugMode) {
+                const hbX = this.x + (this.fLeft ? -(this.hitBox.xRel + this.hitBox.w) : this.hitBox.xRel) - camX;
+                const hbY = this.y + this.hitBox.yRel;
+                const hbW = this.hitBox.w;
+                const hbH = this.hitBox.h;
+        
+                ctx.fillStyle = "rgba(255, 0, 0, 0.3)";
+                ctx.fillRect(hbX, hbY, hbW, hbH);
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = "red";
+                ctx.strokeRect(hbX, hbY, hbW, hbH);
+        
+                ctx.fillStyle = "blue";
+                ctx.beginPath();
+                ctx.arc(this.x - camX, this.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+        
+                for (const box of this.attackBoxes) {
+                  const attackBoxCanvasX = this.x + (this.fLeft ? -box.x : box.x) - camX;
+                  const attackBoxCanvasY = this.y + box.y;
+
+                  ctx.beginPath();
+                  ctx.ellipse(attackBoxCanvasX, attackBoxCanvasY, box.rx, box.ry, 0, 0, 2 * Math.PI);
+                  ctx.fillStyle = "rgba(100,200,255,0.3)";
+                  ctx.fill();
+                  ctx.strokeStyle = "white";
+                  ctx.stroke();
+                }
+              }
+            }
+          }
+          ctx.imageSmoothingEnabled = false;
+        
+          class Vector2 {
+            constructor(x, y) { this.x = x; this.y = y; }
+            add(other) { return new Vector2(this.x + other.x, this.y + other.y); }
+            subtract(other) { return new Vector2(this.x - other.x, this.y - other.y); }
+            scale(scalar) { return new Vector2(this.x * scalar, this.y * scalar); }
+            dot(other) { return this.x * other.x + other.y * this.y; }
+            magnitude() { return Math.sqrt(this.x * this.x + this.y * this.y); }
+            normalize() {
+                const mag = this.magnitude();
+                if (mag === 0) return new Vector2(0, 0);
+                return new Vector2(this.x / mag, this.y / mag);
+            }
+            perp() { return new Vector2(-this.y, this.x); }
+            rotate(angle) {
+                const cos = Math.cos(angle);
+                const sin = Math.sin(angle);
+                return new Vector2( this.x * cos - this.y * sin, this.x * sin + this.y * cos );
+            }
+          }
+        
+          function getRotatedRectVertices(rectX, rectY, rectWidth, rectHeight, rectAngle) {
+            const halfW = rectWidth / 2;
+            const halfH = rectHeight / 2;
+            const center = new Vector2(rectX, rectY);
+            const vertices = [
+                new Vector2(-halfW, -halfH), new Vector2( halfW, -halfH),
+                new Vector2( halfW,  halfH), new Vector2(-halfW,  halfH)
+            ];
+            return vertices.map(v => v.rotate(rectAngle).add(center));
+          }
+        
+          function getRectAxes(rectVertices) {
+            const axes = [];
+            for (let i = 0; i < 4; i++) {
+                const p1 = rectVertices[i];
+                const p2 = rectVertices[(i + 1) % 4];
+                const edge = p2.subtract(p1);
+                axes.push(edge.perp().normalize());
+            }
+            return axes;
+          }
+        
+          function getEllipseProjection(ellipsePos, ellipseHalfWidth, ellipseHalfHeight, ellipseAngle, axis) {
+            const localAxis = axis.rotate(-ellipseAngle);
+            const a = ellipseHalfWidth;
+            const b = ellipseHalfHeight;
+            const projectionRadius = Math.sqrt( (a * a * localAxis.x * localAxis.x) + (b * b * localAxis.y * localAxis.y) );
+            const centerProjection = ellipsePos.dot(axis);
+            return { min: centerProjection - projectionRadius, max: centerProjection + projectionRadius };
+          }
+        
+          function getEllipseClosestPointAxis(ellipsePos, ellipseHalfWidth, ellipseHalfHeight, ellipseAngle, rectVertex) {
+            const translatedVertex = rectVertex.subtract(ellipsePos);
+            const localVertex = translatedVertex.rotate(-ellipseAngle);
+        
+            if (localVertex.x === 0 && localVertex.y === 0) return null;
+        
+            const angle = Math.atan2(localVertex.y, localVertex.x);
+            const cosA = Math.cos(angle);
+            const sinA = Math.sin(angle);
+            const a = ellipseHalfWidth;
+            const b = ellipseHalfHeight;
+        
+            const denominator = Math.sqrt((a * a * sinA * sinA) + (b * b * cosA * cosA));
+            const xIntersect = (a * b * cosA) / denominator;
+            const yIntersect = (a * b * sinA) / denominator;
+            const closestPointOnLocalEllipse = new Vector2(xIntersect, yIntersect);
+        
+            const normalLocal = new Vector2( closestPointOnLocalEllipse.x / (a * a), closestPointOnLocalEllipse.y / (b * b) ).normalize();
+            const normalGlobal = normalLocal.rotate(ellipseAngle);
+            return normalGlobal;
+          }
+        
+          function checkOverlap(proj1, proj2) {
+            return Math.max(proj1.min, proj2.min) < Math.min(proj1.max, proj2.max);
+          }
+        
+          function ellipseRectCollisionSAT(
+            ellipseX, ellipseY, ellipseWidth, ellipseHeight, ellipseAngle,
+            rectX, rectY, rectWidth, rectHeight, rectAngle
+          ) {
+            const ellipsePos = new Vector2(ellipseX, ellipseY);
+            const ellipseHalfWidth = ellipseWidth / 2;
+            const ellipseHalfHeight = ellipseHeight / 2;
+        
+            const rectVertices = getRotatedRectVertices(rectX, rectY, rectWidth, rectHeight, rectAngle);
+            const axes = getRectAxes(rectVertices);
+        
+            axes.push(new Vector2(1, 0).rotate(ellipseAngle));
+            axes.push(new Vector2(0, 1).rotate(ellipseAngle));
+        
+            for (const rectVertex of rectVertices) {
+                const ellipseAxis = getEllipseClosestPointAxis(ellipsePos, ellipseHalfWidth, ellipseHalfHeight, ellipseAngle, rectVertex);
+                if (ellipseAxis) {
+                     axes.push(ellipseAxis);
+                }
+            }
+        
+            for (const axis of axes) {
+                const ellipseProjection = getEllipseProjection(ellipsePos, ellipseHalfWidth, ellipseHalfHeight, ellipseAngle, axis);
+                let minRectProj = Infinity;
+                let maxRectProj = -Infinity;
+                for (const vertex of rectVertices) { 
+                    const proj = vertex.dot(axis);
+                    minRectProj = Math.min(minRectProj, proj);
+                    maxRectProj = Math.max(maxRectProj, proj);
+                }
+                const rectProjection = { min: minRectProj, max: maxRectProj };
+        
+                if (!checkOverlap(ellipseProjection, rectProjection)) {
+                    return false;
+                }
+            }
+            return true;
+          }
+        
+          // Dynamically create players based on playerAmount
+          const players = [];
+          if (playerAmount >= 1) players.push(new Player("Assasin", canvas.width / (playerAmount + 1)));
+          if (playerAmount >= 2) players.push(new Player("Wu", canvas.width / (playerAmount + 1) * 2));
+          if (playerAmount >= 3) players.push(new Player("darkrai", canvas.width / (playerAmount + 1) * 3));
+          if (playerAmount >= 4) players.push(new Player("Reaper", canvas.width / (playerAmount + 1) * 4));
+
+          let activeDebugPlayer = null;
+        
+          const keysDown = {};
+          const keysJustPressed = {};
+        
+          window.addEventListener("keydown", e => {
+            const k = e.key;
+            isHKey = (k === 'h' || k === 'H');
+            isSKey = (k === 's' || k === 'S');
+        
+            if (!(k in keysDown)) {
+                keysJustPressed[k] = true;
+            }
+            keysDown[k] = true;
+        
+            if (k === 'p' || k === 'P') {
+              pauseGame = !pauseGame;
+              if (pauseGame) pausedFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            }
+            if (k === 'b' || k === 'B') debugMode = !debugMode;
+            if (!debugMode) {
+              activeDebugPlayer = null;
+              isHKey = false;
+              isSKey = false;
+            }
+          });
+        
+          window.addEventListener("keyup", e => {
+            isHKey = (e.key !== 'h' && e.key !== 'H') ? isHKey : false;
+            isSKey = (e.key !== 's' && e.key !== 'S') ? isSKey : false;
+        
+            delete keysDown[e.key];
+            delete keysJustPressed[e.key];
+          });
+        
+          canvas.addEventListener("mousemove", e => {
+            const rect = canvas.getBoundingClientRect();
+            debugMouseX = e.clientX - rect.left;
+            debugMouseY = e.clientY - rect.top;
+        
+            const worldMouseX = debugMouseX + cameraX;
+            const worldMouseY = debugMouseY;
+        
+            if (debugMode && activeDebugPlayer) {
+              if (draggingEllipse) {
+                const { player, box } = draggingEllipse;
+                box.x = (player.fLeft ? -(worldMouseX - player.x) : (worldMouseX - player.x));
+                box.y = worldMouseY - player.y;
+              } else if (resizingEllipse) {
+                const { player, box } = resizingEllipse;
+                const cx = player.x + (player.fLeft ? -box.x : box.x);
+                const cy = player.y + box.y;
+                box.rx = Math.abs((worldMouseX) - cx);
+                box.ry = Math.abs(worldMouseY - cy);
+              } else if (draggingHitbox) {
+                const { player } = draggingHitbox;
+                player.hitBox.xRel = (player.fLeft ? -(worldMouseX - player.x) : (worldMouseX - player.x));
+                player.hitBox.yRel = worldMouseY - player.y;
+              } else if (resizingHitbox) {
+                const { player } = resizingHitbox;
+                player.hitBox.w = Math.max(1, worldMouseX - (player.x + player.hitBox.xRel));
+                player.hitBox.h = Math.max(1, worldMouseY - (player.y + player.hitBox.yRel));
+              } else if (draggingSpriteOffset) {
+                const { player } = draggingSpriteOffset;
+                player.spriteDrawOffset.xRel = (player.fLeft ? -(worldMouseX - player.x) : (worldMouseX - player.x)) / SCALE;
+                player.spriteDrawOffset.yRel = (worldMouseY - player.y) / SCALE;
+              }
+            }
+          });
+        
+          canvas.addEventListener("mousedown", e => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            debugMouseX = mx;
+            debugMouseY = my;
+            mouseButton = e.button;
+        
+            if (debugMode) {
+              if (mx > 10 && mx < 230 && my > canvas.height - 50 && my < canvas.height - 10) {
+                const updatedStats = {};
+                players.forEach(player => {
+                  updatedStats[player.name] = {
+                    ...stats[player.name],
+                    attackBoxes: player.attackBoxes.map(b => ({ ...b })),
+                    hitBox: { ...player.hitBox },
+                    spriteDrawOffset: { ...player.spriteDrawOffset }
+                  };
+                });
+                const js = `const stats = ${JSON.stringify(updatedStats, null, 2)};`;
+                const tempTextArea = document.createElement("textarea");
+                tempTextArea.value = js;
+                document.body.appendChild(tempTextArea);
+                tempTextArea.select();
+                try {
+                    document.execCommand('copy');
+                } catch (err) {
+                }
+                document.body.removeChild(tempTextArea);
+                return;
+              }
+        
+              activeDebugPlayer = null;
+              for (const player of players) {
+                  const spriteDrawX = player.x + (player.fLeft ? -(player.sht * SCALE) + (player.spriteDrawOffset.xRel * SCALE) : (player.spriteDrawOffset.xRel * SCALE)) - cameraX;
+                  const spriteDrawY = player.y + (player.spriteDrawOffset.yRel * SCALE);
+        
+                  if (mx > spriteDrawX && mx < spriteDrawX + (player.sht * SCALE) &&
+                      my > spriteDrawY && my < spriteDrawY + (player.svt * SCALE)) {
+                      activeDebugPlayer = player;
+                      break;
+                  }
+              }
+        
+              if (isHKey && activeDebugPlayer) {
+                  const player = activeDebugPlayer;
+                  const hbX = player.x + (player.fLeft ? -(player.hitBox.xRel + player.hitBox.w) : player.hitBox.xRel) - cameraX;
+                  const hbY = player.y + player.hitBox.yRel;
+        
+                  if (mouseButton === 0) {
+                      if (mx > hbX && mx < hbX + player.hitBox.w &&
+                          my > hbY && my < hbY + player.hitBox.h) {
+                          draggingHitbox = { player };
+                      }
+                  } else if (mouseButton === 2) {
+                      if (mx > hbX && mx < hbX + player.hitBox.w &&
+                          my > hbY && my < hbY + player.hitBox.h) {
+                          resizingHitbox = { player };
+                      }
+                  }
+                  return;
+              }
+        
+              if (isSKey && activeDebugPlayer) {
+                  const player = activeDebugPlayer;
+                  const spriteDrawX = player.x + (player.fLeft ? -(player.sht * SCALE) + (player.spriteDrawOffset.xRel * SCALE) : (player.spriteDrawOffset.xRel * SCALE)) - cameraX;
+                  const spriteDrawY = player.y + (player.spriteDrawOffset.yRel * SCALE);
+        
+                  if (mouseButton === 0) {
+                      if (mx > spriteDrawX && mx < spriteDrawX + (player.sht * SCALE) &&
+                          my > spriteDrawY && my < spriteDrawY + (player.svt * SCALE)) {
+                          draggingSpriteOffset = { player };
+                      }
+                  }
+                  return;
+              }
+        
+              const checkEllipse = (player) => {
+                for (const box of player.attackBoxes) {
+                  const bx = player.x + (player.fLeft ? -box.x : box.x) - cameraX;
+                  const by = player.y + box.y;
+                  const dx = mx - bx;
+                  const dy = my - by;
+                  if ((dx * dx) / (box.rx * box.rx) + (dy * dy) / (box.ry * box.ry) <= 1) {
+                    if (mouseButton === 0) draggingEllipse = { player, box };
+                    else if (mouseButton === 2) resizingEllipse = { player, box };
+                    return true;
+                  }
+                }
+                return false;
+              };
+              players.some(p => checkEllipse(p));
+            }
+          });
+        
+          canvas.addEventListener("mouseup", () => {
+            draggingEllipse = null;
+            resizingEllipse = null;
+            draggingHitbox = null;
+            resizingHitbox = null;
+            draggingSpriteOffset = null;
+            mouseButton = null;
+          });
+          canvas.addEventListener("contextmenu", e => e.preventDefault());
+        
+          let lst = 0;
+          let countdownTime = 4;
+          let countdownStarted = false;
+        
+          let assetsLoaded = false;
+          const imagesToLoadPromises = [];
+        
+          imagesToLoadPromises.push(new Promise(resolve => {
+            bgImage.onload = () => { resolve(); };
+            bgImage.onerror = () => { resolve(); };
+          }));
+        
+          imagesToLoadPromises.push(new Promise(resolve => {
+            healthImg.onload = () => { resolve(); };
+            healthImg.onerror = () => { resolve(); };
+          }));
+          imagesToLoadPromises.push(new Promise(resolve => {
+            staminaImg.onload = () => { resolve(); };
+            staminaImg.onerror = () => { resolve(); };
+          }));
+        
+          for (const charName in animations) {
+            for (const animName in animations[charName]) {
+              // Only load images for characters that will be in the game
+              if ( (playerAmount >= 1 && charName === "Assasin") ||
+                   (playerAmount >= 2 && charName === "Wu") ||
+                   (playerAmount >= 3 && charName === "darkrai") ||
+                   (playerAmount >= 4 && charName === "Reaper") ) {
+                  const imageKey = `${charName}_${animName}`;
+                  const img = new Image();
+                  img.src = loadSS(charName, animName);
+                  preloadedImages[imageKey] = img;
+            
+                  imagesToLoadPromises.push(new Promise(resolve => {
+                    img.onload = () => { resolve(); };
+                    img.onerror = () => { resolve(); };
+                  }));
+              }
+            }
+          }
+        
+          Promise.all(imagesToLoadPromises).then(() => {
+              assetsLoaded = true;
+              loop();
+          }).catch(error => {
+          });
+        
+        function drawCountdown() {
+          if (bgImage.complete) {
+            let currentDrawWidth = BG_TILE_WIDTH;
+            let currentDrawHeight = BG_TILE_HEIGHT;
+        
+            if (bgImage.src.includes("Background5") ||
+                bgImage.src.includes("Background6") ||
+                bgImage.src.includes("Background7") ||
+                bgImage.src.includes("Background8")
+               ) {
+                currentDrawWidth = canvas.width;
+                currentDrawHeight = canvas.height;
+            }
+        
+            for (
+              let x = Math.floor(cameraX / currentDrawWidth) * currentDrawWidth;
+              x < cameraX + canvas.width;
+              x += currentDrawWidth
+            ) {
+              ctx.drawImage(bgImage, x - cameraX, 0, currentDrawWidth, currentDrawHeight);
+            }
+          }
+        
+          const text = countdownTime === 1 ? "FIGHT!" : `${countdownTime - 1}`;
+          ctx.font = "300px FightFont, sans-serif";
+          ctx.textAlign = "center";
+          ctx.lineWidth = 6;
+          ctx.strokeStyle = "#ff69b4";
+          ctx.fillStyle = "#ffe600";
+          ctx.strokeText(text, canvas.width / 2, canvas.height / 2);
+          ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+        }
+        
+        class FloatingText {
+          constructor(text, x, y, color = "white", duration = 1000) {
+            this.text = text;
+            this.x = x;
+            this.y = y;
+            this.color = color;
+            this.startTime = performance.now();
+            this.duration = duration;
+            this.alpha = 1;
+            this.dy = -0.5;
+          }
+        
+          draw(ctx) {
+            const elapsed = performance.now() - this.startTime;
+            if (elapsed > this.duration) return false;
+        
+            this.y += this.dy;
+            this.alpha = 1 - elapsed / this.duration;
+        
+            ctx.save();
+            ctx.globalAlpha = this.alpha;
+            ctx.font = "64px FightFont, sans-serif";
+            ctx.textAlign = "center";
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = "black";
+            ctx.fillStyle = this.color;
+            ctx.strokeText(this.text, this.x - cameraX, this.y);
+            ctx.fillText(this.text, this.x - cameraX, this.y);
+            ctx.restore();
+            return true;
+          }
+        }
+
+        function checkStaminaForSpecial(player) {
+          return player.stamina / player.maxStamina >= 0.9;
+        }
+        
+        function loop(ts = 0) {
+          const dt = ts - lst;
+          lst = ts;
+        
+          if (!countdownStarted) {
+            countdownStarted = true;
+            const countdownInterval = setInterval(() => {
+              countdownTime--;
+              if (countdownTime === 0) clearInterval(countdownInterval);
+            }, 1000);
+          }
+        
+          const playersWithLives = players.filter(p => p.lives > 0);
+          const alivePlayersCount = playersWithLives.length;
+        
+          if (alivePlayersCount <= 1 && !gameOver) {
+            gameOver = true;
+            koDisplayTime = performance.now();
+          }
+          
+          if (gameOver) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (bgImage.complete) {
+                let currentDrawWidth = BG_TILE_WIDTH;
+                let currentDrawHeight = BG_TILE_HEIGHT;
+        
+                if (bgImage.src.includes("Background5") ||
+                    bgImage.src.includes("Background6") ||
+                    bgImage.src.includes("Background7") ||
+                    bgImage.src.includes("Background8")
+                   ) {
+                    currentDrawWidth = canvas.width;
+                    currentDrawHeight = canvas.height;
+                }
+        
+                for (let x = Math.floor(cameraX / currentDrawWidth) * currentDrawWidth; x < cameraX + canvas.width; x += currentDrawWidth)
+                  ctx.drawImage(bgImage, x - cameraX, 0, currentDrawWidth, currentDrawHeight);
+            }
+        
+            players.forEach(player => player.draw(cameraX));
+            
+            // Draw bars only for existing players
+            if (players[0]) drawBars(40, 40, players[0], false);
+            if (players[1]) drawBars(40, 40, players[1], true);
+            if (players[2]) drawBars(40, 260, players[2], false);
+            if (players[3]) drawBars(40, 260, players[3], true);
+        
+            if (performance.now() - koDisplayTime >= 0) {
+                ctx.font = "250px FightFont, sans-serif";
+                ctx.textAlign = "center";
+                ctx.strokeStyle = "#ff69b4";
+                ctx.lineWidth = 8;
+                ctx.fillStyle = "yellow";
+                ctx.strokeText("KO!", canvas.width / 2, canvas.height / 2);
+                ctx.fillText("KO!", canvas.width / 2, canvas.height / 2);
+            }
+        
+            if (performance.now() - koDisplayTime >= 2000) {
+                const finalWinner = playersWithLives.length === 1 ? playersWithLives[0] : null;
+                let winnerText = "KNOCKOUT!";
+                let winnerColor = "red";
+        
+                if (finalWinner) {
+                    winnerText = `${finalWinner.name.toUpperCase()} WON!`;
+                    winnerColor = finalWinner.name === "Assasin" ? "#00ffd0" :
+                                  finalWinner.name === "Wu" ? "#ffa3ff" :
+                                  finalWinner.name === "darkrai" ? "#00ff00" :
+                                  finalWinner.name === "Reaper" ? "#ff00ff" :
+                                  "white";
+                }
+        
+                ctx.font = "100px FightFont, sans-serif";
+                ctx.fillStyle = winnerColor;
+                ctx.strokeStyle = "#000";
+                ctx.lineWidth = 4;
+                ctx.strokeText(winnerText, canvas.width / 2, canvas.height / 2 + 60);
+                ctx.fillText(winnerText, canvas.width / 2, canvas.height / 2 + 60);
+            }
+            requestAnimationFrame(loop);
+            return;
+          }
+        
+          if (countdownTime > 0) {
+            drawCountdown();
+            requestAnimationFrame(loop);
+            return;
+          }
+        
+          if (!assetsLoaded) {
+              requestAnimationFrame(loop);
+              return;
+          }
+        
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+          if (bgImage.complete) {
+            let currentDrawWidth = BG_TILE_WIDTH;
+            let currentDrawHeight = BG_TILE_HEIGHT;
+        
+            if (bgImage.src.includes("Background5") ||
+                bgImage.src.includes("Background6") ||
+                bgImage.src.includes("Background7") ||
+                bgImage.src.includes("Background8")
+               ) {
+                currentDrawWidth = canvas.width;
+                currentDrawHeight = canvas.height;
+            }
+        
+            for (let x = Math.floor(cameraX / currentDrawWidth) * currentDrawWidth; x < cameraX + canvas.width; x += currentDrawWidth)
+                  ctx.drawImage(bgImage, x - cameraX, 0, currentDrawWidth, currentDrawHeight);
+          }
+        
+          const activePlayersForCamera = players.filter(p => !p.dead && !p.isRespawning);
+          if (activePlayersForCamera.length > 0) {
+              const minPlayerX = Math.min(...activePlayersForCamera.map(p => p.x));
+              const maxPlayerX = Math.max(...activePlayersForCamera.map(p => p.x));
+              const targetX = (minPlayerX + maxPlayerX) / 2 - canvas.width / 2;
+              cameraX += (targetX - cameraX) * 0.1;
+        
+              cameraX = Math.max(0, Math.min(cameraX, BG_TILE_WIDTH - canvas.width));
+          } else {
+              cameraX = 0;
+          }
+        
+          // Player 1 (Assasin) controls
+          if (players[0]) {
+            players[0].speedX = keysDown["a"] ? -players[0].spd : keysDown["d"] ? players[0].spd : 0;
+            if (keysJustPressed["w"]) players[0].jump();
+            if (keysDown["q"]) players[0].tryAtk("Attack1");
+            if (keysDown["e"]) players[0].tryAtk("Attack2");
+          }
+        
+          // Player 2 (Wu) controls
+          if (players[1]) {
+            players[1].speedX = keysDown["j"] ? -players[1].spd : keysDown["l"] ? players[1].spd : 0;
+            if (keysJustPressed["i"]) players[1].jump();
+            if (players[1].name === "Wu" && keysDown["u"] && keysDown["o"]) {
+                const now = performance.now();
+                if (checkStaminaForSpecial(players[1])) {
+                    players[1].lockedUntil = 0;
+                    players[1].attackCooldownUntil = 0;
+                    players[1].stamina -= players[1].maxStamina * 0.1;
+                    floatingTexts.push(new FloatingText("COMBO!", players[1].x, players[1].y - 100, "#ffa3ff"));
+                }
+            }
+            if (keysDown["u"]) players[1].tryAtk("Attack1");
+            if (keysDown["o"]) players[1].tryAtk("Attack2");
+          }
+        
+          // Player 3 (Darkrai) controls
+          if (players[2]) {
+            players[2].speedX = keysDown["ArrowLeft"] ? -players[2].spd : keysDown["ArrowRight"] ? players[2].spd : 0;
+            if (keysJustPressed["ArrowUp"]) players[2].jump();
+            if (players[2].name === "darkrai" && keysDown[","] && keysDown["."]) {
+                const now = performance.now();
+                if (now > players[2].superModeToggleCooldown) {
+                    if (checkStaminaForSpecial(players[2]) || players[2].isSuperMode) {
+                        players[2].isSuperMode = !players[2].isSuperMode;
+                        if (players[2].isSuperMode) {
+                            players[2].stamina -= players[2].maxStamina * 0.1;
+                            players[2].at1 *= 2;
+                            players[2].at2 *= 2;
+                            players[2].hp *= 2;
+                            players[2].health = players[2].hp;
+                            players[2].maxHealth = players[2].hp;
+                            players[2].spd /= 2;
+                            players[2].stam /= 2;
+                            players[2].maxStamina = players[2].stam;
+                            players[2].hitBox.xRel *= 2;
+                            players[2].hitBox.yRel *= 2;
+                            players[2].hitBox.w *= 2;
+                            players[2].hitBox.h *= 2;
+                            players[2].attackBoxes.forEach(box => {
+                                box.x *= 2;
+                                box.y *= 2;
+                                box.rx *= 2;
+                                box.ry *= 2;
+                            });
+                            players[2].superModeDeactivationTime = now + 10000;
+                            floatingTexts.push(new FloatingText("SUPER MODE!", players[2].x, players[2].y - 100, "gold"));
+                        } else {
+                            if (now < players[2].superModeDeactivationTime) {
+                              players[2].stamina -= players[2].maxStamina * 0.1;
+                            }
+                            players[2].at1 = players[2].originalStats.at1;
+                            players[2].at2 = players[2].originalStats.at2;
+                            players[2].hp = players[2].originalStats.hp;
+                            players[2].health = Math.min(players[2].health, players[2].hp);
+                            players[2].maxHealth = players[2].hp;
+                            players[2].spd = players[2].originalStats.spd;
+                            players[2].stam = players[2].originalStats.stam;
+                            players[2].maxStamina = players[2].stam;
+                            players[2].hitBox.xRel = players[2].originalStats.hitBox.xRel;
+                            players[2].hitBox.yRel = players[2].originalStats.hitBox.yRel;
+                            players[2].hitBox.w = players[2].originalStats.hitBox.w;
+                            players[2].hitBox.h = players[2].originalStats.hitBox.h;
+                            players[2].attackBoxes.forEach((box, index) => {
+                                box.x = players[2].originalStats.attackBoxes[index].x;
+                                box.y = players[2].originalStats.attackBoxes[index].y;
+                                box.rx = players[2].originalStats.attackBoxes[index].rx;
+                                box.ry = players[2].originalStats.attackBoxes[index].ry;
+                            });
+                            players[2].superModeDeactivationTime = 0;
+                            floatingTexts.push(new FloatingText("MODE OFF", players[2].x, players[2].y - 100, "grey"));
+                        }
+                        players[2].superModeToggleCooldown = now + 1000;
+                    }
+                }
+            }
+            if (keysDown[","] && !keysDown["."]) players[2].tryAtk("Attack1");
+            if (keysDown["."] && !keysDown[","]) players[2].tryAtk("Attack2");
+          }
+        
+          // Player 4 (Reaper) controls
+          if (players[3]) {
+            players[3].speedX = keysDown["4"] ? -players[3].spd : keysDown["6"] ? players[3].spd : 0;
+            if (keysJustPressed["8"]) players[3].jump();
+            if (players[3].name === "Reaper" && keysDown["7"] && keysDown["9"]) {
+                const now = performance.now();
+                if (checkStaminaForSpecial(players[3]) && !players[3].isDoubleSpeed) {
+                    players[3].lockedUntil = 0;
+                    players[3].attackCooldownUntil = 0;
+                    players[3].stamina -= players[3].maxStamina * 0.1;
+                    floatingTexts.push(new FloatingText("LIFE STEAL!", players[3].x, players[3].y - 100, "purple"));
+                    
+                    players[3].isDoubleSpeed = true;
+                    players[3].spd = players[3].originalStats.spd * 2;
+                    players[3].doubleSpeedEndTime = now + 5000;
+                }
+            }
+            if (keysDown["7"]) players[3].tryAtk("Attack1");
+            if (keysDown["9"]) players[3].tryAtk("Attack2");
+          }
+        
+          players.forEach(player => {
+            player.update(dt);
+            player.draw(cameraX);
+          });
+        
+          // Draw bars only for existing players
+          if (players[0]) drawBars(40, 40, players[0], false);
+          if (players[1]) drawBars(40, 40, players[1], true);
+          if (players[2]) drawBars(40, 260, players[2], false);
+          if (players[3]) drawBars(40, 260, players[3], true);
+        
+          function checkAllCollisions() {
+            for (let i = 0; i < players.length; i++) {
+              for (let j = 0; j < players.length; j++) {
+                if (i !== j && !players[i].dead && !players[j].dead) {
+                  const attacker = players[i];
+                  const defender = players[j];
+                  if (attacker.curA.startsWith("Attack")) {
+                    let activeAttackBox = attacker.attackBoxes.find(box =>
+                      (attacker.curA === "Attack1" && box.attack === 1) ||
+                      (attacker.curA === "Attack2" && box.attack === 2)
+                    );
+                    
+                    if ((attacker.name === "darkrai" || attacker.name === "Reaper") && attacker.curA === "Attack2") {
+                        activeAttackBox = attacker.attackBoxes.find(box => box.attack === 1);
+                    }
+                    if (!activeAttackBox) continue;
+        
+                    const ellipseX = activeAttackBox.worldX;
+                    const ellipseY = activeAttackBox.worldY;
+                    const ellipseWidth = activeAttackBox.rx * 2;
+                    const ellipseHeight = activeAttackBox.ry * 2;
+                    const ellipseAngle = 0;
+        
+                    const rectX = defender.x + defender.hitBox.xRel + (defender.hitBox.w / 2);
+                    const rectY = defender.y + defender.hitBox.yRel + (defender.hitBox.h / 2);
+                    const rectWidth = defender.hitBox.w;
+                    const rectHeight = defender.hitBox.h;
+                    const rectAngle = 0;
+        
+                    if (ellipseRectCollisionSAT(
+                      ellipseX, ellipseY, ellipseWidth, ellipseHeight, ellipseAngle,
+                      rectX, rectY, rectWidth, rectHeight, rectAngle
+                    )) {
+                        if (!attacker.targetsHitThisAttack.has(defender)) {
+                            attacker.targetsHitThisAttack.add(defender);
+        
+                            let damage = attacker.curA === "Attack1" ? attacker.at1 : attacker.at2;
+        
+                            if (attacker.name === "Assasin" && attacker.curA === "Attack2" &&
+                                attacker.y < groundY && attacker.vy > 0 && checkStaminaForSpecial(attacker)) {
+                                damage = 20;
+                                floatingTexts.push(new FloatingText("POUNCE!", players[0].x, players[0].y - 100, "#ffa3ff"));
+                            }
+        
+                            if (attacker.name === "Wu" && keysDown["u"] && keysDown["o"] && checkStaminaForSpecial(attacker)) {
+                                damage += 10;
+                            }
+        
+                            if (attacker.name === "Reaper" && keysDown["7"] && keysDown["9"]) {
+                                const stolenHealth = defender.health * 0.15;
+                                attacker.health = Math.min(attacker.maxHealth, attacker.health + stolenHealth);
+                                floatingTexts.push(new FloatingText(`+${Math.round(stolenHealth)} HP`, attacker.x, attacker.y - 150, "lime"));
+                            }
+        
+                            const textX = defender.x - 5;
+                            const textY = defender.y + defender.hitBox.yRel;
+        
+                            defender.pendingHurtAnim = {
+                                type: "TakeHit",
+                                startTime: performance.now() + 200
+                            };
+        
+                            defender.health -= damage;
+        
+                            if (defender.health <= 0) {
+                                defender.lives--;
+                                if (defender.lives > 0) {
+                                    defender.health = defender.maxHealth;
+                                    defender.setA("Death", true);
+                                    defender.isRespawning = true;
+                                    defender.respawnTime = performance.now() + 5000;
+                                } else {
+                                    defender.health = 0;
+                                    defender.dead = true;
+                                    defender.setA("Death", true);
+                                }
+                            }
+                            floatingTexts.push(new FloatingText(`-${damage}`, textX, textY, "#ff5555"));
+        
+                            setTimeout(() => (defender.hitFlag = false), 200);
+                        }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          checkAllCollisions();
+        
+          for (let i = floatingTexts.length - 1; i >= 0; i--) {
+            if (!floatingTexts[i].draw(ctx)) {
+              floatingTexts.splice(i, 1);
+            }
+          }
+        
+          if (debugMode) {
+            ctx.fillStyle = "#222";
+            ctx.fillRect(10, canvas.height - 50, 220, 40);
+            ctx.fillStyle = "#fff";
+            ctx.font = "16px monospace";
+            ctx.fillText("Copy Debug Info", 20, canvas.height - 25);
+        
+            ctx.fillStyle = "white";
+            ctx.font = "20px monospace";
+            ctx.fillText(`Mouse X: ${Math.round(debugMouseX)}`, 20, canvas.height - 80);
+            ctx.fillText(`Mouse Y: ${Math.round(debugMouseY)}`, 20, canvas.height - 60);
+        
+            ctx.strokeStyle = 'lime';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, groundY);
+            ctx.lineTo(canvas.width, groundY);
+            ctx.stroke();
+        
+            ctx.strokeStyle = 'yellow';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(0, 0, canvas.width, canvas.height);
+          }
+        
+          requestAnimationFrame(loop);
+          for (const k in keysJustPressed) {
+            delete keysJustPressed[k];
+          }
+        }
+        
+        function drawBars(initialX, y, pl, alignRight = false) {
+          const spacing = 8;
+          const scale = 2.5;
+          const barW = HSB * scale;
+          const barH = HSB * scale;
+        
+          let drawX = initialX;
+        
+          if (alignRight) {
+            drawX = canvas.width - initialX - barW;
+          }
+        
+          ctx.save();
+        
+          ctx.drawImage(healthImg, getBarFrame(pl.health, pl.maxHealth) * HSB, 0, HSB, HSB, drawX, y, barW, barH);
+          ctx.drawImage(staminaImg, (pl.stamina >= Math.min(pl.at1SL, pl.at2SL) ? getBarFrame(pl.stamina, pl.maxStamina) : 5) * HSB, 0, HSB, HSB, drawX, y + barH + spacing, barW, barH);
+          ctx.restore();
+        
+          ctx.save();
+          ctx.font = "30px FightFont, sans-serif";
+          ctx.fillStyle = "white";
+          ctx.strokeStyle = "black";
+          ctx.lineWidth = 2;
+          
+          let livesTextDrawX;
+          let livesText = `${pl.name.toUpperCase()} LIVES: ${pl.lives}`;
+
+          if (alignRight) {
+            livesTextDrawX = drawX - 10;
+            ctx.textAlign = "right";
+          } else {
+            livesTextDrawX = drawX + barW + 10;
+            ctx.textAlign = "left";
+          }
+          
+          const livesTextY = y + barH / 2 + 15;
+        
+          ctx.strokeText(livesText, livesTextDrawX, livesTextY);
+          ctx.fillText(livesText, livesTextDrawX, livesTextY);
+          ctx.restore();
+        
+          function getBarFrame(val, max) {
+            const p = (val / max) * 100;
+            return p <= 0 ? 5 : p <= 20 ? 4 : p <= 40 ? 3 : p <= 60 ? 2 : p <= 80 ? 1 : 0;
+          }
+          ctx.imageSmoothingEnabled = false;
+
+        }
+        
+        })();
+    </script>
+</body>
+
+</html>
