@@ -24,32 +24,57 @@
 <canvas id="homeCanvas"></canvas>
 <script>
 (() => {
+  const player1Keys = ["W", "A", "S", "D", "Q", "E"]
+  const player2Keys = ["I", "J", "K", "L", "U", "O"]
+  const player3Keys = ["ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight", "/", "."]
+  const player4Keys = ["8", "4", "5", "6", "7", "9"]
+  const player5Keys = ["T", "F", "G", "H", "R", "Y"]
+  const player6Keys = ["Z", "X", "C", "V", "A", "S"]
+
   const canvas = document.getElementById("homeCanvas")
   const ctx = canvas.getContext("2d")
-  ctx.imageSmoothingEnabled = false
 
   const hexagonRadius = 80
   const centerIndex = 0
   let allHexagons = []
   let showHexagons = false
+  let maxPlayers = 2; // New variable for player count, default to 2
 
-  const ringColors = ["#ff0033", "#00aaff", "#00ff7f", "#ff9900"]
+  const ringColors = ["#ff0033", "#00aaff", "#00ff7f", "#ff9900", "#9932cc", "#ff1493"]
   const playerKeyMap = {
-    P1: { movement: ["a", "d"], join: ["w"], color: ringColors[0] },
-    P2: { movement: ["j", "l"], join: ["i"], color: ringColors[1] },
-    P3: { movement: ["arrowleft", "arrowright"], join: ["arrowup"], color: ringColors[2] },
-    P4: { movement: ["4", "6"], join: ["8"], color: ringColors[3] }
+    P1: { movement: [player1Keys[1].toLowerCase(), player1Keys[3].toLowerCase()], join: [player1Keys[0].toLowerCase()], color: ringColors[0] },
+    P2: { movement: [player2Keys[1].toLowerCase(), player2Keys[3].toLowerCase()], join: [player2Keys[0].toLowerCase()], color: ringColors[1] },
+    P3: { movement: [player3Keys[1].toLowerCase(), player3Keys[3].toLowerCase()], join: [player3Keys[0].toLowerCase()], color: ringColors[2] },
+    P4: { movement: [player4Keys[1], player4Keys[3]], join: [player4Keys[0]], color: ringColors[3] },
+    P5: { movement: [player5Keys[1].toLowerCase(), player5Keys[3].toLowerCase()], join: [player5Keys[0].toLowerCase()], color: ringColors[4] },
+    P6: { movement: [player6Keys[1].toLowerCase(), player6Keys[3].toLowerCase()], join: [player6Keys[0].toLowerCase()], color: ringColors[5]}
   }
+
+  const bgPaths = [
+    "Assets/Background1/Battleground1.png",
+    "Assets/Background2/Battleground2.png",
+    "Assets/Background3/Battleground3.png",
+    "Assets/Background4/Battleground4.png",
+    "Assets/Background5/Battleground5.png",
+    "Assets/Background6/Battleground6.png",
+    "Assets/Background7/Battleground7.png",
+    "Assets/Background8/Battleground8.png"
+  ]
+
+  const bgImage = new Image()
+  bgImage.src = bgPaths[Math.floor(Math.random() * bgPaths.length)]
+  let bgX = 0
+  const bgSpeed = 1
 
   const players = {}
 
   const characterSprites = [
-    { name: "Wu",      path: "Assets/Wu/Idle.png",      frameCount: 8,  frameWidth: 200, frameHeight: 200, row: 0, size: 3.2 },
-    { name: "Tarzan",  path: "Assets/Tarzan/Idle.png",  frameCount: 10, frameWidth: 126, frameHeight: 126, row: 0, size: 3.4 },
-    { name: "Knight",  path: "Assets/Knight/IDLE.png",  frameCount: 7,  frameWidth: 96,  frameHeight: 84,  row: 0, size: 4.0 },
-    { name: "Assasin", path: "Assets/Assasin/Idle.png", frameCount: 4,  frameWidth: 200, frameHeight: 200, row: 0, size: 2.8 },
-    { name: "Darkrai", path: "Assets/Darkdude.png",     frameCount: 6,  frameWidth: 80,  frameHeight: 80,  row: 0, size: 4.2 },
-    { name: "Reaper",  path: "Assets/Reaper.png",       frameCount: 8,  frameWidth: 80,  frameHeight: 80,  row: 0, size: 4.2 }
+    { name: "Wu", path: "Assets/Wu/Idle.png", frameCount: 8, frameWidth: 200, frameHeight: 200, row: 0, size: 7 },
+    { name: "Tarzan", path: "Assets/Tarzan/Idle.png", frameCount: 10, frameWidth: 126, frameHeight: 126, row: 0, size: 4 },
+    { name: "Knight", path: "Assets/Knight/IDLE.png", frameCount: 7, frameWidth: 96, frameHeight: 84, row: 0, size: 4 },
+    { name: "Assasin", path: "Assets/Assasin/Idle.png", frameCount: 4, frameWidth: 200, frameHeight: 200, row: 0, size: 7 },
+    { name: "Darkrai", path: "Assets/Darkdude.png", frameCount: 6, frameWidth: 80, frameHeight: 80, row: 0, size: 4 },
+    { name: "Reaper", path: "Assets/Reaper.png", frameCount: 8, frameWidth: 80, frameHeight: 80, row: 0, size: 4 }
   ]
 
   const spriteImages = characterSprites.map(char => {
@@ -59,21 +84,37 @@
   })
 
   const bannerImg = new Image()
-  bannerImg.src = "Assets/banner.png"
+  bannerImg.src = "Assets/Banner.png"
 
   const buttonImg = new Image()
   buttonImg.src = "Assets/Button.png"
 
-  const background = new Image()
-  background.src = "Assets/Background1/Battleground1.png"
-
   const buttonsImage = new Image()
   buttonsImage.src = "Assets/Buttons.png"
 
-  const buttonZones = [[
-    { x: 855, y: 82 }, { x: 571, y: 98 }, { x: 518, y: 151 },
-    { x: 590, y: 227 }, { x: 862, y: 205 }
-  ]]
+  // Updated buttonZones to include player selection buttons
+  const buttonZones = [
+    // Play button area (existing)
+    [
+      { x: 855, y: 82 }, { x: 571, y: 98 }, { x: 518, y: 151 },
+      { x: 590, y: 227 }, { x: 862, y: 205 }
+    ],
+    // 2 Players button area (new)
+    [
+      { x: 550, y: 300 }, { x: 450, y: 300 }, { x: 450, y: 350 },
+      { x: 550, y: 350 }
+    ],
+    // 3 Players button area (new)
+    [
+      { x: 650, y: 300 }, { x: 550, y: 300 }, { x: 550, y: 350 },
+      { x: 650, y: 350 }
+    ],
+    // 4 Players button area (new)
+    [
+      { x: 750, y: 300 }, { x: 650, y: 300 }, { x: 650, y: 350 },
+      { x: 750, y: 350 }
+    ]
+  ]
 
   let spriteIndex = 0
   let spriteTimer = 0
@@ -91,39 +132,95 @@
     const r = canvas.getBoundingClientRect()
     const x = e.clientX - r.left
     const y = e.clientY - r.top
+    const p = { x, y }
+
+    // Play button click (top right)
     if (showHexagons && x >= canvas.width - 120 && y <= 80) {
       const payload = Object.entries(players).map(([id, p]) => ({
         id,
         character: p.character
       }))
       sessionStorage.setItem("fighters", JSON.stringify(payload))
-      sessionStorage.setItem("playerCount", payload.length)
+
+      const controls = {
+        P1: player1Keys,
+        P2: player2Keys,
+        P3: player3Keys,
+        P4: player4Keys,
+        P5: player5Keys,
+        P6: player6Keys
+      }
+      sessionStorage.setItem("controls", JSON.stringify(controls))
+
+      sessionStorage.setItem("playerCount", maxPlayers) // Use maxPlayers here
       location.href = "game.html"
     }
-    const p = { x, y }
+
+    // "Play" button (main game start) in the center of the screen
     if (isPointInPolygon(p, buttonZones[0])) {
       showHexagons = true
       setupHexagons()
+      return; // Prevent other button clicks if play button is clicked
+    }
+
+    // Player count selection buttons
+    if (!showHexagons) {
+        if (isPointInPolygon(p, buttonZones[1])) { // 2 Players button
+            maxPlayers = 2;
+            console.log("Max players set to 2");
+        } else if (isPointInPolygon(p, buttonZones[2])) { // 3 Players button
+            maxPlayers = 3;
+            console.log("Max players set to 3");
+        } else if (isPointInPolygon(p, buttonZones[3])) { // 4 Players button
+            maxPlayers = 4;
+            console.log("Max players set to 4");
+        }
+        // Remove players beyond the new maxPlayers limit
+        Object.keys(players).forEach(id => {
+            const playerNum = parseInt(id.replace('P', ''));
+            if (playerNum > maxPlayers) {
+                delete players[id];
+            }
+        });
     }
   })
 
   window.addEventListener("keydown", e => {
     const key = e.key.toLowerCase()
-    Object.entries(playerKeyMap).forEach(([id, data], idx) => {
+    Object.entries(playerKeyMap).forEach(([id, data]) => {
+      const playerNum = parseInt(id.replace('P', ''));
+      if (playerNum > maxPlayers) { // Do not allow players beyond maxPlayers to join
+          return;
+      }
       if (!players[id] && data.join.includes(key)) {
-        players[id] = { hex: centerIndex }
-        return
+        if (Object.keys(players).length < maxPlayers) { // Only allow joining if maxPlayers limit not reached
+            players[id] = { hex: centerIndex };
+            console.log(`${id} joined. Current players: ${Object.keys(players).length}`);
+        } else {
+            console.log(`Cannot join, max players (${maxPlayers}) reached.`);
+        }
+        return;
       }
       const player = players[id]
       if (player && data.movement.includes(key)) {
         const moveRight = data.movement.indexOf(key) === 1
-        const next = moveRight ? (player.hex + 1) % allHexagons.length : (player.hex - 1 + allHexagons.length) % allHexagons.length
-        players[id].hex = next
-        if (next === centerIndex) {
-          delete players[id]
+        // Ensure next hexagon is within the allowed range (0 for center, then 1 to maxPlayers)
+        let next = player.hex;
+        if (moveRight) {
+            next = (player.hex === 0) ? 1 : (player.hex % maxPlayers) + 1; // Cycle from 1 to maxPlayers
         } else {
-          const sprite = characterSprites[next - 1]
-          players[id].character = sprite?.name || ""
+            next = (player.hex === 0) ? maxPlayers : (player.hex - 1 + maxPlayers) % maxPlayers; // Cycle from maxPlayers down to 1
+            if (next === 0) next = maxPlayers; // If it wraps to 0, make it maxPlayers for visual hexagon
+        }
+
+        players[id].hex = next;
+        // If moving back to center hex (0), it means they left character selection
+        if (next === 0) {
+          delete players[id];
+        } else {
+          // Adjust spriteImages index: characterSprites[next - 1] since array is 0-indexed
+          const sprite = characterSprites[next - 1];
+          players[id].character = sprite?.name || "";
         }
       }
     })
@@ -135,14 +232,15 @@
     const dx = hexagonRadius * Math.sqrt(3)
     const dy = hexagonRadius * 1.5
     allHexagons = [
-      generateHexagon(cx, cy),
-      generateHexagon(cx + dx, cy),
-      generateHexagon(cx + dx / 2, cy + dy),
-      generateHexagon(cx - dx / 2, cy + dy),
-      generateHexagon(cx - dx, cy),
-      generateHexagon(cx - dx / 2, cy - dy),
-      generateHexagon(cx + dx / 2, cy - dy)
+      generateHexagon(cx, cy) // Center hexagon
     ]
+    // Dynamically add outer hexagons based on maxPlayers
+    for (let i = 0; i < maxPlayers; i++) {
+        // Distribute hexagons evenly around the center
+        const angle = (Math.PI * 2 / maxPlayers) * i + Math.PI / 6; // Start angle adjusted for visual alignment
+        allHexagons.push(generateHexagon(cx + dx * Math.cos(angle), cy + dx * Math.sin(angle)));
+    }
+    console.log(`Generated ${allHexagons.length} hexagons (1 center + ${maxPlayers} outer).`);
   }
 
   function generateHexagon(cx, cy) {
@@ -221,8 +319,12 @@
   }
 
   function loop(ts = 0) {
+    bgX += bgSpeed
+    if (bgX >= canvas.width) bgX = 0
+
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.drawImage(background, 0, 0, canvas.width, canvas.height)
+    ctx.drawImage(bgImage, -bgX, 0, canvas.width, canvas.height)
+    ctx.drawImage(bgImage, canvas.width - bgX, 0, canvas.width, canvas.height)
 
     if (showHexagons) {
       if (ts - spriteTimer > spriteDelay) {
@@ -231,9 +333,9 @@
       }
 
       allHexagons.forEach((hex, i) => {
-        if (i !== centerIndex) {
+        if (i !== centerIndex && i <= maxPlayers) { // Only draw hexagons up to maxPlayers
           drawHex(hex, "black")
-          drawCharacter(spriteImages[i - 1], hex)
+          drawCharacter(spriteImages[i - 1], hex) // Use i-1 for spriteImages index
           Object.entries(players).forEach(([id, p]) => {
             if (p.hex === i) {
               const color = playerKeyMap[id]?.color
@@ -255,10 +357,47 @@
       drawBanners()
     } else {
       if (buttonsImage.complete) ctx.drawImage(buttonsImage, 400, 0, 600, 600)
+
+      // Draw player count selection buttons
+      ctx.font = "20px FightFont";
+      ctx.textAlign = "center";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "black";
+      ctx.fillStyle = "white";
+
+      // 2 Players button
+      ctx.strokeRect(buttonZones[1][1].x, buttonZones[1][1].y, 100, 50); // Using first point for x,y and width/height
+      ctx.fillRect(buttonZones[1][1].x, buttonZones[1][1].y, 100, 50);
+      ctx.strokeText("2 Players", buttonZones[1][1].x + 50, buttonZones[1][1].y + 30);
+      ctx.fillText("2 Players", buttonZones[1][1].x + 50, buttonZones[1][1].y + 30);
+
+      // 3 Players button
+      ctx.strokeRect(buttonZones[2][1].x, buttonZones[2][1].y, 100, 50);
+      ctx.fillRect(buttonZones[2][1].x, buttonZones[2][1].y, 100, 50);
+      ctx.strokeText("3 Players", buttonZones[2][1].x + 50, buttonZones[2][1].y + 30);
+      ctx.fillText("3 Players", buttonZones[2][1].x + 50, buttonZones[2][1].y + 30);
+
+      // 4 Players button
+      ctx.strokeRect(buttonZones[3][1].x, buttonZones[3][1].y, 100, 50);
+      ctx.fillRect(buttonZones[3][1].x, buttonZones[3][1].y, 100, 50);
+      ctx.strokeText("4 Players", buttonZones[3][1].x + 50, buttonZones[3][1].y + 30);
+      ctx.fillText("4 Players", buttonZones[3][1].x + 50, buttonZones[3][1].y + 30);
+
+      // Indicate current selection
+      ctx.fillStyle = "yellow";
+      let selectedButtonX;
+      if (maxPlayers === 2) {
+          selectedButtonX = buttonZones[1][1].x;
+      } else if (maxPlayers === 3) {
+          selectedButtonX = buttonZones[2][1].x;
+      } else { // maxPlayers === 4
+          selectedButtonX = buttonZones[3][1].x;
+      }
+      ctx.fillRect(selectedButtonX, buttonZones[1][1].y - 5, 100, 5); // A small bar above the selected button
     }
 
     ctx.drawImage(buttonImg, canvas.width - 120, 20, 90, 60)
-
+    ctx.imageSmoothingEnabled = false
     requestAnimationFrame(loop)
   }
 
