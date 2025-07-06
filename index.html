@@ -38,7 +38,7 @@
   const centerIndex = 0
   let allHexagons = []
   let showHexagons = false
-  let maxPlayers = 2; // New variable for player count, default to 2
+  let maxPlayers = 2; // Default to 2 players
 
   const ringColors = ["#ff0033", "#00aaff", "#00ff7f", "#ff9900", "#9932cc", "#ff1493"]
   const playerKeyMap = {
@@ -76,6 +76,7 @@
     { name: "Darkrai", path: "Assets/Darkdude.png", frameCount: 6, frameWidth: 80, frameHeight: 80, row: 0, size: 4 },
     { name: "Reaper", path: "Assets/Reaper.png", frameCount: 8, frameWidth: 80, frameHeight: 80, row: 0, size: 4 }
   ]
+  const TOTAL_CHARACTER_SLOTS = characterSprites.length; // This will be 6
 
   const spriteImages = characterSprites.map(char => {
     const img = new Image()
@@ -84,7 +85,7 @@
   })
 
   const bannerImg = new Image()
-  bannerImg.src = "Assets/banner.png"
+  bannerImg.src = "Assets/banner.png" // Corrected path to lowercase 'banner'
 
   const buttonImg = new Image()
   buttonImg.src = "Assets/Button.png"
@@ -92,28 +93,35 @@
   const buttonsImage = new Image()
   buttonsImage.src = "Assets/Buttons.png"
 
-  // Updated buttonZones to include player selection buttons
+  // Updated buttonZones
   const buttonZones = [
-    // Play button area (existing)
+    // Play button area (existing, center)
     [
       { x: 855, y: 82 }, { x: 571, y: 98 }, { x: 518, y: 151 },
       { x: 590, y: 227 }, { x: 862, y: 205 }
     ],
-    // 2 Players button area (new)
-    [
-      { x: 550, y: 300 }, { x: 450, y: 300 }, { x: 450, y: 350 },
-      { x: 550, y: 350 }
-    ],
-    // 3 Players button area (new)
-    [
-      { x: 650, y: 300 }, { x: 550, y: 300 }, { x: 550, y: 350 },
-      { x: 650, y: 350 }
-    ],
-    // 4 Players button area (new)
-    [
-      { x: 750, y: 300 }, { x: 650, y: 300 }, { x: 650, y: 350 },
-      { x: 750, y: 350 }
-    ]
+    // Player count selection buttons (new positions for 2,3,4,5,6)
+    // Using a more structured approach for button positions
+    {
+        label: "2 Players",
+        coords: [{ x: 450, y: 300 }, { x: 550, y: 350 }] // Top-left, Bottom-right for rect
+    },
+    {
+        label: "3 Players",
+        coords: [{ x: 560, y: 300 }, { x: 660, y: 350 }]
+    },
+    {
+        label: "4 Players",
+        coords: [{ x: 670, y: 300 }, { x: 770, y: 350 }]
+    },
+    {
+        label: "5 Players",
+        coords: [{ x: 450, y: 360 }, { x: 550, y: 410 }]
+    },
+    {
+        label: "6 Players",
+        coords: [{ x: 560, y: 360 }, { x: 660, y: 410 }]
+    }
   ]
 
   let spriteIndex = 0
@@ -134,7 +142,7 @@
     const y = e.clientY - r.top
     const p = { x, y }
 
-    // Play button click (top right)
+    // Play button click (top right) - to start game.html
     if (showHexagons && x >= canvas.width - 120 && y <= 80) {
       const payload = Object.entries(players).map(([id, p]) => ({
         id,
@@ -152,36 +160,41 @@
       }
       sessionStorage.setItem("controls", JSON.stringify(controls))
 
-      sessionStorage.setItem("playerCount", maxPlayers) // Use maxPlayers here
+      sessionStorage.setItem("playerCount", Object.keys(players).length) // Send actual number of players who joined
       location.href = "game.html"
     }
 
     // "Play" button (main game start) in the center of the screen
-    if (isPointInPolygon(p, buttonZones[0])) {
+    if (!showHexagons && isPointInPolygon(p, buttonZones[0])) { // Only clickable when not showing hexagons
       showHexagons = true
       setupHexagons()
-      return; // Prevent other button clicks if play button is clicked
+      return;
     }
 
-    // Player count selection buttons
+    // Player count selection buttons - only visible and clickable when not in character selection
     if (!showHexagons) {
-        if (isPointInPolygon(p, buttonZones[1])) { // 2 Players button
-            maxPlayers = 2;
-            console.log("Max players set to 2");
-        } else if (isPointInPolygon(p, buttonZones[2])) { // 3 Players button
-            maxPlayers = 3;
-            console.log("Max players set to 3");
-        } else if (isPointInPolygon(p, buttonZones[3])) { // 4 Players button
-            maxPlayers = 4;
-            console.log("Max players set to 4");
-        }
-        // Remove players beyond the new maxPlayers limit
-        Object.keys(players).forEach(id => {
-            const playerNum = parseInt(id.replace('P', ''));
-            if (playerNum > maxPlayers) {
-                delete players[id];
+        for (let i = 1; i < buttonZones.length; i++) {
+            const btn = buttonZones[i];
+            const btnRect = {
+                x: btn.coords[0].x,
+                y: btn.coords[0].y,
+                width: btn.coords[1].x - btn.coords[0].x,
+                height: btn.coords[1].y - btn.coords[0].y
+            };
+            if (x >= btnRect.x && x <= btnRect.x + btnRect.width &&
+                y >= btnRect.y && y <= btnRect.y + btnRect.height) {
+                maxPlayers = parseInt(btn.label.split(" ")[0]);
+                console.log(`Max players set to ${maxPlayers}`);
+                // Remove players beyond the new maxPlayers limit
+                Object.keys(players).forEach(id => {
+                    const playerNum = parseInt(id.replace('P', ''));
+                    if (playerNum > maxPlayers) {
+                        delete players[id];
+                    }
+                });
+                break; // Exit loop once a button is clicked
             }
-        });
+        }
     }
   })
 
@@ -189,9 +202,8 @@
     const key = e.key.toLowerCase()
     Object.entries(playerKeyMap).forEach(([id, data]) => {
       const playerNum = parseInt(id.replace('P', ''));
-      if (playerNum > maxPlayers) { // Do not allow players beyond maxPlayers to join
-          return;
-      }
+
+      // Check if player can join (maxPlayers limit)
       if (!players[id] && data.join.includes(key)) {
         if (Object.keys(players).length < maxPlayers) { // Only allow joining if maxPlayers limit not reached
             players[id] = { hex: centerIndex };
@@ -201,16 +213,19 @@
         }
         return;
       }
+
       const player = players[id]
       if (player && data.movement.includes(key)) {
         const moveRight = data.movement.indexOf(key) === 1
-        // Ensure next hexagon is within the allowed range (0 for center, then 1 to maxPlayers)
+        // Hexagon selection should always cycle through all TOTAL_CHARACTER_SLOTS
         let next = player.hex;
+        const totalCharacterHexes = TOTAL_CHARACTER_SLOTS; // 6 outer hexagons
+
         if (moveRight) {
-            next = (player.hex === 0) ? 1 : (player.hex % maxPlayers) + 1; // Cycle from 1 to maxPlayers
+            next = (player.hex === 0) ? 1 : ((player.hex % totalCharacterHexes) + 1);
         } else {
-            next = (player.hex === 0) ? maxPlayers : (player.hex - 1 + maxPlayers) % maxPlayers; // Cycle from maxPlayers down to 1
-            if (next === 0) next = maxPlayers; // If it wraps to 0, make it maxPlayers for visual hexagon
+            next = (player.hex === 0) ? totalCharacterHexes : ((player.hex - 1 + totalCharacterHexes) % totalCharacterHexes);
+            if (next === 0) next = totalCharacterHexes;
         }
 
         players[id].hex = next;
@@ -234,13 +249,12 @@
     allHexagons = [
       generateHexagon(cx, cy) // Center hexagon
     ]
-    // Dynamically add outer hexagons based on maxPlayers
-    for (let i = 0; i < maxPlayers; i++) {
-        // Distribute hexagons evenly around the center
-        const angle = (Math.PI * 2 / maxPlayers) * i + Math.PI / 6; // Start angle adjusted for visual alignment
+    // Always add 6 outer hexagons for character selection
+    for (let i = 0; i < TOTAL_CHARACTER_SLOTS; i++) { // Always 6 hexagons
+        const angle = (Math.PI * 2 / TOTAL_CHARACTER_SLOTS) * i + Math.PI / 6;
         allHexagons.push(generateHexagon(cx + dx * Math.cos(angle), cy + dx * Math.sin(angle)));
     }
-    console.log(`Generated ${allHexagons.length} hexagons (1 center + ${maxPlayers} outer).`);
+    console.log(`Generated ${allHexagons.length} hexagons (1 center + ${TOTAL_CHARACTER_SLOTS} outer).`);
   }
 
   function generateHexagon(cx, cy) {
@@ -254,9 +268,21 @@
 
   function isPointInPolygon(p, poly) {
     let x = p.x, y = p.y, inside = false
-    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-      let xi = poly[i].x, yi = poly[i].y
-      let xj = poly[j].x, yj = poly[j].y
+    // Poly can be an array of points (for the main play button) or an object with coords (for new buttons)
+    let points = poly;
+    if (poly.coords) { // If it's one of the new button objects
+        // Create a rectangular polygon from the top-left and bottom-right coords
+        points = [
+            {x: poly.coords[0].x, y: poly.coords[0].y},
+            {x: poly.coords[1].x, y: poly.coords[0].y},
+            {x: poly.coords[1].x, y: poly.coords[1].y},
+            {x: poly.coords[0].x, y: poly.coords[1].y}
+        ];
+    }
+
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      let xi = points[i].x, yi = points[i].y
+      let xj = points[j].x, yj = points[j].y
       let intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)
       if (intersect) inside = !inside
     }
@@ -296,27 +322,43 @@
   }
 
   function drawBanners() {
-    const ids = Object.keys(players)
     const centerX = canvas.width / 2
     const margin = 260
-    ids.forEach((id, i) => {
-      const p = players[id]
-      if (p.hex === null || p.hex === undefined || p.hex === centerIndex) return
-      const offset = (i - (ids.length - 1) / 2) * margin
-      const x = centerX + offset - 100
-      const y = 30
-      ctx.drawImage(bannerImg, x, y, 200, 70)
-      ctx.font = "24px FightFont"
-      ctx.textAlign = "center"
-      ctx.lineWidth = 4
-      ctx.strokeStyle = "black"
-      ctx.strokeText(`Player ${i + 1}:`, x + 100, y + 28)
-      ctx.strokeText((p.character || "").toUpperCase(), x + 100, y + 58)
-      ctx.fillStyle = "white"
-      ctx.fillText(`Player ${i + 1}:`, x + 100, y + 28)
-      ctx.fillText((p.character || "").toUpperCase(), x + 100, y + 58)
-    })
+
+    // Always display banners for maxPlayers
+    for (let i = 1; i <= maxPlayers; i++) { // Loop for P1, P2, ... PmaxPlayers
+        const id = `P${i}`;
+        const p = players[id];
+
+        const offset = (i - 1 - (maxPlayers - 1) / 2) * margin; // Center the group of banners
+        const x = centerX + offset - 100; // Position banner relative to center
+        const y = 30;
+
+        ctx.drawImage(bannerImg, x, y, 200, 70);
+        ctx.font = "24px FightFont";
+        ctx.textAlign = "center";
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "black";
+        ctx.fillStyle = "white";
+
+        let titleText = "";
+        let charText = "";
+
+        if (showHexagons && p && p.hex !== centerIndex) { // If in character selection and player has chosen character
+            titleText = `Player ${i}:`;
+            charText = (p.character || "").toUpperCase();
+        } else { // Initial state or player has not chosen a character
+            titleText = `PLAYER ${i}:`;
+            charText = "CHOOSE A HERO";
+        }
+
+        ctx.strokeText(titleText, x + 100, y + 28);
+        ctx.fillText(titleText, x + 100, y + 28);
+        ctx.strokeText(charText, x + 100, y + 58);
+        ctx.fillText(charText, x + 100, y + 58);
+    }
   }
+
 
   function loop(ts = 0) {
     bgX += bgSpeed
@@ -326,6 +368,8 @@
     ctx.drawImage(bgImage, -bgX, 0, canvas.width, canvas.height)
     ctx.drawImage(bgImage, canvas.width - bgX, 0, canvas.width, canvas.height)
 
+    drawBanners(); // Always draw banners
+
     if (showHexagons) {
       if (ts - spriteTimer > spriteDelay) {
         spriteTimer = ts
@@ -333,7 +377,7 @@
       }
 
       allHexagons.forEach((hex, i) => {
-        if (i !== centerIndex && i <= maxPlayers) { // Only draw hexagons up to maxPlayers
+        if (i !== centerIndex) { // Always draw all 6 outer hexagons
           drawHex(hex, "black")
           drawCharacter(spriteImages[i - 1], hex) // Use i-1 for spriteImages index
           Object.entries(players).forEach(([id, p]) => {
@@ -354,7 +398,6 @@
         }
       })
 
-      drawBanners()
     } else {
       if (buttonsImage.complete) ctx.drawImage(buttonsImage, 400, 0, 600, 600)
 
@@ -365,38 +408,28 @@
       ctx.strokeStyle = "black";
       ctx.fillStyle = "white";
 
-      // 2 Players button
-      ctx.strokeRect(buttonZones[1][1].x, buttonZones[1][1].y, 100, 50); // Using first point for x,y and width/height
-      ctx.fillRect(buttonZones[1][1].x, buttonZones[1][1].y, 100, 50);
-      ctx.strokeText("2 Players", buttonZones[1][1].x + 50, buttonZones[1][1].y + 30);
-      ctx.fillText("2 Players", buttonZones[1][1].x + 50, buttonZones[1][1].y + 30);
+      // Draw player count selection buttons (from buttonZones index 1 onwards)
+      for (let i = 1; i < buttonZones.length; i++) {
+          const btn = buttonZones[i];
+          const x = btn.coords[0].x;
+          const y = btn.coords[0].y;
+          const width = btn.coords[1].x - btn.coords[0].x;
+          const height = btn.coords[1].y - btn.coords[0].y;
 
-      // 3 Players button
-      ctx.strokeRect(buttonZones[2][1].x, buttonZones[2][1].y, 100, 50);
-      ctx.fillRect(buttonZones[2][1].x, buttonZones[2][1].y, 100, 50);
-      ctx.strokeText("3 Players", buttonZones[2][1].x + 50, buttonZones[2][1].y + 30);
-      ctx.fillText("3 Players", buttonZones[2][1].x + 50, buttonZones[2][1].y + 30);
+          ctx.strokeRect(x, y, width, height);
+          ctx.fillRect(x, y, width, height);
+          ctx.strokeText(btn.label, x + width / 2, y + height / 2 + 5);
+          ctx.fillText(btn.label, x + width / 2, y + height / 2 + 5);
 
-      // 4 Players button
-      ctx.strokeRect(buttonZones[3][1].x, buttonZones[3][1].y, 100, 50);
-      ctx.fillRect(buttonZones[3][1].x, buttonZones[3][1].y, 100, 50);
-      ctx.strokeText("4 Players", buttonZones[3][1].x + 50, buttonZones[3][1].y + 30);
-      ctx.fillText("4 Players", buttonZones[3][1].x + 50, buttonZones[3][1].y + 30);
-
-      // Indicate current selection
-      ctx.fillStyle = "yellow";
-      let selectedButtonX;
-      if (maxPlayers === 2) {
-          selectedButtonX = buttonZones[1][1].x;
-      } else if (maxPlayers === 3) {
-          selectedButtonX = buttonZones[2][1].x;
-      } else { // maxPlayers === 4
-          selectedButtonX = buttonZones[3][1].x;
+          // Indicate current selection
+          if (maxPlayers === parseInt(btn.label.split(" ")[0])) {
+              ctx.fillStyle = "yellow";
+              ctx.fillRect(x, y - 5, width, 5); // A small bar above the selected button
+          }
       }
-      ctx.fillRect(selectedButtonX, buttonZones[1][1].y - 5, 100, 5); // A small bar above the selected button
     }
 
-    ctx.drawImage(buttonImg, canvas.width - 120, 20, 90, 60)
+    ctx.drawImage(buttonImg, canvas.width - 120, 20, 90, 60) // Always draw the top-right play button
     ctx.imageSmoothingEnabled = false
     requestAnimationFrame(loop)
   }
