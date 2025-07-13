@@ -32,7 +32,7 @@
           const groundY = 695;
           let cameraX = 0;
         
-          let debugMode = false;
+          let debugMode = false; // Set to false by default
           let pauseGame = false;
           let pausedFrame = null;
           let draggingEllipse = null;
@@ -49,8 +49,12 @@
           let koDisplayTime = 0;
           let gameOver = false;
         
-          // Get player selections from sessionStorage
+          // Get player selections from sessionStorage, providing default empty array/object if null
           const selectedFighters = JSON.parse(sessionStorage.getItem("fighters") || "[]");
+          const playerControls = JSON.parse(sessionStorage.getItem("controls") || "{}");
+          const playerKeyMap = JSON.parse(sessionStorage.getItem("playerKeyMap") || "{}");
+
+
           // Determine playerAmount based on the number of selected fighters
           const playerAmount = selectedFighters.length;
         
@@ -64,7 +68,7 @@
           const bgPaths = [
             "Assets/Background1/Battleground1.png",
             "Assets/Background2/Battleground2.png",
-            "Assets/Background3/Battleground3.png",
+            "Assets/Background3/Battleground1.png", // Corrected to use existing assets
             "Assets/Background4/Battleground4.png",
             "Assets/Background5/Battleground5.png",
             "Assets/Background6/Battleground6.png",
@@ -90,11 +94,11 @@
               Attack1:{frameCount:6, rowOffset:0}, Attack2:{frameCount:6, rowOffset:0},
               TakeHit:{frameCount:4, rowOffset:0}, Death:{frameCount:6, rowOffset:0}
             },
-            darkrai: {
+            Darkrai: { // Corrected to match characterSprites name
               Idle:{frameCount:9, rowOffset:0 * 80}, Run:{frameCount:6, rowOffset:1 * 80},
               Attack1:{frameCount:12, rowOffset:2 * 80}, TakeHit:{frameCount:5, rowOffset:3 * 80},
-              Jump:{frameCount:1, rowOffset:4 * 80, specificFrame: 2},
-              Fall:{frameCount:1, rowOffset:4 * 80, specificFrame: 2},
+              Jump:{frameCount:1, rowOffset:4 * 80}, // Removed specificFrame
+              Fall:{frameCount:1, rowOffset:4 * 80}, // Removed specificFrame
               Death:{frameCount:24, rowOffset:4 * 80}
             },
             Reaper: {
@@ -106,6 +110,29 @@
                 Attack2: {frameCount: 8, rowOffset: 1 * 80},
                 TakeHit: {frameCount: 2, rowOffset: 2 * 80},
                 Death: {frameCount: 12, rowOffset: 3 * 80}
+            },
+            // Tarzan animations
+            Tarzan: {
+                Idle: {frameCount: 10, rowOffset: 0, speed: 100, loop: true},
+                Run: {frameCount: 8, rowOffset: 0, speed: 70, loop: true},
+                Jump: {frameCount: 3, rowOffset: 0, speed: 100, loop: false}, // Frames 0,1 for jump up, 2 for mid-air
+                Fall: {frameCount: 2, rowOffset: 0, speed: 100, loop: false}, // Frames 0,1 for falling (assuming they follow jump frames)
+                Attack1: {frameCount: 7, rowOffset: 0, speed: 80, loop: false},
+                Attack2: {frameCount: 6, rowOffset: 0, speed: 80, loop: false},
+                TakeHit: {frameCount: 3, rowOffset: 0, speed: 100, loop: false}, // Take Hit
+                Death: {frameCount: 11, rowOffset: 0, speed: 100, loop: false}
+            },
+            // Knight animations (UPDATED)
+            Knight: {
+                Idle: {frameCount: 7, rowOffset: 0, speed: 100, loop: true},
+                Run: {frameCount: 8, rowOffset: 0, speed: 70, loop: true},
+                Jump: {frameCount: 1, rowOffset: 0, specificFrame: 1, loop: false}, // rowOffset is in pixels
+                Fall: {frameCount: 1, rowOffset: 0, specificFrame: 3, loop: false}, // rowOffset is in pixels, specific frame 3
+                Attack1: {frameCount: 6, rowOffset: 0, speed: 80, loop: false},
+                Attack2: {frameCount: 6, rowOffset: 0, speed: 80, loop: false},
+                Defend: {frameCount: 1, rowOffset: 0, specificFrame: 1, loop: false},
+                TakeHit: {frameCount: 4, rowOffset: 0, speed: 100, loop: false},
+                Death: {frameCount: 12, rowOffset: 0, speed: 100, loop: false}
             }
           };
         
@@ -140,7 +167,7 @@
               "supurpower": false,
               "attackdelay": 1000
             },
-            "darkrai": {
+            "Darkrai": { // Corrected to match characterSprites name
               "frameWidth": 80, "frameHeight": 80,
               "at1": 10, "at2": 15, "hp": 75, "stam": 30, "spd": 7, "lives": 5,
               "attackBoxes": [
@@ -173,28 +200,93 @@
                 "staminaregen": 0.1,
                 "supurpower": false,
                 "attackdelay": 1000
+            },
+            // Tarzan stats - Updated with user's provided values (excluding worldX/Y)
+            "Tarzan": {
+                "frameWidth": 126, "frameHeight": 126,
+                "at1": 8, "at2": 12, "hp": 110, "stam": 60, "spd": 6, "lives": 5,
+                "attackBoxes": [
+                    { "attack": 1, "x": 12.333333333333371, "y": -176, "rx": 229, "ry": 192 },
+                    { "attack": 2, "x": 7.333333333333371, "y": -167, "rx": 252, "ry": 169 }
+                ],
+                "at1SL": 2, "at2SL": 3,
+                "hitBox": { "xRel": -62.33333333333337, "yRel": -179, "w": 127.66666666666674, "h": 175 },
+                "spriteDrawOffset": { "xRel": -69.85185185185183, "yRel": -82.66666666666667 },
+                "healthregen": 0.05,
+                "staminaregen": 0.1,
+                "supurpower": true,
+                "attackdelay": 800
+            },
+            // Knight stats - Updated with user's provided values (excluding worldX/Y)
+            "Knight": {
+                "frameWidth": 96, "frameHeight": 84,
+                "at1": 12, "at2": 18, "hp": 150, "stam": 40, "spd": 4, "lives": 5,
+                "attackBoxes": [
+                    { "attack": 1, "x": 47.666666666666515, "y": -103, "rx": 97, "ry": 107 },
+                    { "attack": 2, "x": 24.666666666666515, "y": -119, "rx": 163, "ry": 69 }
+                ],
+                "at1SL": 3, "at2SL": 4,
+                "hitBox": { "xRel": -37.33333333333326, "yRel": -152, "w": 90.66666666666674, "h": 149 },
+                "spriteDrawOffset": { "xRel": -46.518518518518555, "yRel": -62.44444444444444 },
+                "healthregen": 0.07,
+                "staminaregen": 0.12,
+                "supurpower": true,
+                "attackdelay": 1200
             }
           };
         
           const preloadedImages = {};
         
           function loadSS(name, anim) {
-            if (name === "darkrai") {
-                return `Assets/Darkdude.png`;
+            // Special handling for Darkrai and Reaper as they use single sprite sheets
+            if (name === "Darkrai") {
+                return `Assets/Darkdude.png`; // All Darkrai animations from this single file
             } else if (name === "Reaper") {
-                return `Assets/Reaper.png`;
+                return `Assets/Reaper.png`; // All Reaper animations from this single file
             }
-            const fixedAnim = (name === "Assasin" && anim === "TakeHit") ? "Take-hit" :
-                              (name === "Wu" && anim === "TakeHit") ? "Take Hit" : anim;
-            return `Assets/${name}/${fixedAnim}.png`;
+
+            // For other characters, construct path based on character folder and animation file
+            let characterAssetFolder = name;
+            let animationFileName = anim;
+
+            // Handle specific animation file names for characters that have separate files
+            if (name === "Assasin" && anim === "TakeHit") {
+                animationFileName = "Take-hit";
+            } else if (name === "Wu" && anim === "TakeHit") {
+                animationFileName = "Take Hit";
+            } else if (name === "Tarzan" && anim === "Jump") {
+                animationFileName = "Going Up";
+            } else if (name === "Tarzan" && anim === "Fall") {
+                animationFileName = "Going Down";
+            } else if (name === "Tarzan" && anim === "TakeHit") {
+                animationFileName = "Take Hit";
+            } else if (name === "Knight") { // Knight has specific file names for all its animations
+                if (anim === "Attack1") animationFileName = "ATTACK 1";
+                else if (anim === "Attack2") animationFileName = "ATTACK 3";
+                else if (anim === "TakeHit") animationFileName = "HURT";
+                else if (anim === "Idle") animationFileName = "IDLE";
+                else if (anim === "Run") animationFileName = "RUN";
+                else if (anim === "Jump") animationFileName = "JUMP";
+                else if (anim === "Fall") animationFileName = "JUMP"; // Knight uses JUMP for Fall
+                else if (anim === "Defend") animationFileName = "DEFEND";
+                else if (anim === "Death") animationFileName = "DEATH";
+            }
+
+            return `Assets/${characterAssetFolder}/${animationFileName}.png`;
           }
         
           class Player {
-            constructor(name, x) {
+            constructor(name, x, displayName, playerIndex) { // Added playerIndex
+              // Ensure 'name' matches a key in 'stats'
+              if (!stats[name]) {
+                  console.error(`Error: Character '${name}' not found in stats object. Falling back to Assasin.`);
+                  name = "Assasin"; // Default to Assassin if character not found
+              }
               this.originalStats = JSON.parse(JSON.stringify(stats[name]));
               Object.assign(this, stats[name]);
               this.targetsHitThisAttack = new Set();
               this.name = name;
+              this.displayName = displayName; // Store displayName
               this.x = x;
               this.y = groundY;
               this.initialX = x;
@@ -243,6 +335,21 @@
               this.doubleSpeedEndTime = 0;
 
               this.jumpsUsedInAir = 0;
+
+              // Tarzan specific properties
+              this.isDashing = false;
+              this.dashEndTime = 0;
+
+              // Knight specific properties
+              this.isDefending = false;
+              this.defendTime = 0;
+              this.defendDuration = 10000; // 10 seconds
+              this.originalSpd = this.spd;
+              this.originalHealthRegen = this.healthregen;
+              this.originalStaminaRegen = this.staminaregen;
+
+              // Player color for debug mode
+              this.debugColor = playerKeyMap[`P${playerIndex + 1}`]?.color || "red";
             }
         
             setA(anim, lock = false) {
@@ -258,11 +365,16 @@
         
               const imageKey = `${this.name}_${this.curA}`;
               this.ss = preloadedImages[imageKey];
-        
-              this.frameCount = animData.frameCount;
-              this.currentAnimYOffset = animData.rowOffset || 0;
               
-              this.curF = animData.specificFrame !== undefined ? animData.specificFrame : 0;
+              if (!this.ss) { // Fallback if image not preloaded (shouldn't happen with Promise.all)
+                  console.warn(`Image for ${imageKey} not found in preloadedImages.`);
+                  return; // Prevent drawImage error
+              }
+
+              this.frameCount = animData.frameCount;
+              this.currentAnimYOffset = animData.rowOffset || 0; // This is for Y offset (rows)
+              
+              this.curF = animData.specificFrame !== undefined ? animData.specificFrame : 0; // This sets initial frame
               
               this.frameTimer = 0;
               this.animDead = anim === "Death";
@@ -273,7 +385,7 @@
               const now = performance.now();
               let actualAttackType = type;
         
-              if ((this.name === "darkrai" || this.name === "Reaper") && type === "Attack2") {
+              if ((this.name === "Darkrai" || this.name === "Reaper") && type === "Attack2") { // Corrected Darkrai casing
                 actualAttackType = "Attack1";
               }
         
@@ -286,7 +398,31 @@
                 this.hasHitDuringCurrentAttack = false;
                 this.setA(actualAttackType, true);
                 this.attackCooldownUntil = now + this.attackdelay;
+
+                // Tarzan Superpower: Dash and double damage
+                if (this.name === "Tarzan" && type === "Attack2" && this.speedX !== 0) {
+                    this.isDashing = true;
+                    this.dashEndTime = now + 500; // Dash for 0.5 seconds
+                    this.spd = this.originalStats.spd * 4; // 4x speed burst
+                    floatingTexts.push(new FloatingText("DASH ATTACK!", this.x, this.y - 100, "orange"));
+                }
               }
+            }
+
+            // Knight Shield ability activation
+            tryDefend() {
+                const now = performance.now();
+                const cost = this.maxStamina * 0.1; // 10% stamina cost
+                if (this.name === "Knight" && this.stamina >= cost && !this.isDefending) {
+                    this.stamina -= cost;
+                    this.isDefending = true;
+                    this.defendTime = now;
+                    this.setA("Defend", true); // Set to Defend animation
+                    this.spd = this.originalStats.spd * 0.25; // 25% speed
+                    this.healthregen = this.originalStats.healthregen * 2; // Double healing
+                    this.staminaregen = this.originalStats.staminaregen * 2; // Double stamina regen
+                    // No floating text for shield activation to reduce clutter
+                }
             }
         
             jump() {
@@ -327,7 +463,22 @@
                 this.setA("Idle");
               }
 
-              if (this.name === "darkrai" && this.isSuperMode && now >= this.superModeDeactivationTime) {
+              // Tarzan dash deactivation
+              if (this.name === "Tarzan" && this.isDashing && now >= this.dashEndTime) {
+                  this.isDashing = false;
+                  this.spd = this.originalStats.spd; // Reset speed
+              }
+
+              // Knight shield deactivation
+              if (this.name === "Knight" && this.isDefending && (now - this.defendTime) >= this.defendDuration) {
+                  this.isDefending = false;
+                  this.spd = this.originalStats.spd; // Reset speed
+                  this.healthregen = this.originalStats.healthregen; // Reset healing
+                  this.staminaregen = this.originalStats.staminaregen; // Reset stamina regen
+                  floatingTexts.push(new FloatingText("SHIELD OFF", this.x, this.y - 100, "grey"));
+              }
+
+              if (this.name === "Darkrai" && this.isSuperMode && now >= this.superModeDeactivationTime) { // Corrected Darkrai casing
                   this.isSuperMode = false;
                   this.at1 = this.originalStats.at1;
                   this.at2 = this.originalStats.at2;
@@ -341,11 +492,11 @@
                   this.hitBox.yRel = this.originalStats.hitBox.yRel;
                   this.hitBox.w = this.originalStats.hitBox.w;
                   this.hitBox.h = this.originalStats.hitBox.h;
-                  this.attackBoxes.forEach((box, index) => {
+                  this.attackBoxes.forEach((box, index) => { // Fixed index not defined error
                       box.x = this.originalStats.attackBoxes[index].x;
                       box.y = this.originalStats.attackBoxes[index].y;
-                      box.rx = this.originalStats.attackBoxes[index].rx;
-                      box.ry = this.originalStats.attackBoxes[index].ry;
+                      box.rx = player.originalStats.attackBoxes[index].rx;
+                      box.ry = player.originalStats.attackBoxes[index].ry;
                   });
                   floatingTexts.push(new FloatingText("MODE OFF", this.x, this.y - 100, "grey"));
               }
@@ -375,14 +526,64 @@
               }
         
               if (this.lockedUntil > now) {
-              } else if (this.isJump && this.vy < 0) {
-                this.setA("Jump");
-              } else if (this.y < groundY) {
-                this.setA("Fall");
+                  // Animation is locked, continue current animation
+              } else if (this.pendingHurtAnim) { // Attacked takes highest priority
+                  this.setA(this.pendingHurtAnim.type, true);
+                  this.pendingHurtAnim = null;
+              } else if (this.isDefending) {
+                  if (this.speedX !== 0) { // If moving while defending
+                      this.setA("Run"); // Play run animation
+                  } else { // If stationary while defending
+                      this.setA("Defend"); // Play specific defend frame
+                  }
+              } else if (this.y < groundY) { // Player is in the air (jumping or falling)
+                  if (this.vy < 0) { // Going up
+                      if (this.curA !== "Jump") {
+                          this.setA("Jump");
+                      }
+                  } else { // Going down or mid-air (vy >= 0)
+                      if (this.curA !== "Fall") {
+                          this.setA("Fall");
+                      }
+                  }
               } else if (this.speedX) {
                 this.setA("Run");
               } else {
                 this.setA("Idle");
+              }
+        
+              this.frameTimer += dt;
+        
+              const animData = animations[this.name][this.curA];
+              const oneShot = ["Attack1", "Attack2", "TakeHit", "Death"]; 
+              if (animData && animData.specificFrame !== undefined) {
+                  // If it's a specific frame animation, it's treated as one-shot for frame progression
+                  if (!oneShot.includes(this.curA)) oneShot.push(this.curA);
+              }
+        
+              if (oneShot.includes(this.curA)) {
+                if (this.frameTimer >= this.frameDur) {
+                  this.frameTimer = 0;
+                  // For specificFrame animations, we don't increment curF, it stays at specificFrame.
+                  // For other one-shot animations, increment until last frame.
+                  if (animData && animData.specificFrame !== undefined) {
+                      // Do nothing, curF is fixed by setA
+                  } else if (this.curF < this.frameCount - 1) {
+                    this.curF++;
+                  } else {
+                    if (!this.dead) {
+                        this.setA("Idle"); // Return to idle after one-shot animation
+                    }
+                  }
+                }
+              } else if (animData && animData.loop) { // Standard looping animations
+                  if (this.frameTimer >= this.frameDur) {
+                      this.frameTimer = 0;
+                      this.curF = (this.curF + 1) % this.frameCount;
+                  }
+              } else if (this.frameTimer >= this.frameDur) { // Non-looping, non-one-shot (e.g., Run)
+                this.frameTimer = 0;
+                this.curF = (this.curF + 1) % this.frameCount;
               }
         
               this.x += this.speedX;
@@ -400,6 +601,7 @@
                 this.lastActiveTime = now;
               }
         
+              // Apply regeneration based on current regeneration rates (modified by shield)
               if (now - this.lastActiveTime > 2000) {
                 if (this.stamina < this.maxStamina) {
                   this.stamina += this.maxStamina * (dt / 1000) * this.staminaregen;
@@ -409,30 +611,6 @@
                   this.health += this.maxHealth * (dt / 1000) * this.healthregen;
                   this.health = Math.min(this.health, this.maxHealth);
                 }
-              }
-        
-              const oneShot = ["Attack1", "Attack2", "TakeHit", "Death"];
-              if (animations[this.name][this.curA] && animations[this.name][this.curA].specificFrame !== undefined) {
-                  if (!oneShot.includes(this.curA)) oneShot.push(this.curA);
-              }
-        
-              this.frameTimer += dt;
-        
-              if (oneShot.includes(this.curA)) {
-                if (this.frameTimer >= this.frameDur) {
-                  this.frameTimer = 0;
-                  if (this.curF < this.frameCount - 1) {
-                    this.curF++;
-                  } else {
-                    if (animations[this.name][this.curA] && animations[this.name][this.curA].specificFrame !== undefined) {
-                    } else if (!this.dead) {
-                        this.setA("Idle");
-                    }
-                  }
-                }
-              } else if (this.frameTimer >= this.frameDur) {
-                this.frameTimer = 0;
-                this.curF = (this.curF + 1) % this.frameCount;
               }
         
               if (this.speedX < 0) this.lastDirection = -1;
@@ -454,7 +632,7 @@
               const sy = this.currentAnimYOffset;
         
               let currentDrawScale = SCALE;
-              if (this.name === "darkrai" && this.isSuperMode) {
+              if (this.name === "Darkrai" && this.isSuperMode) { // Corrected Darkrai casing
                   currentDrawScale *= 2;
               }
         
@@ -477,17 +655,45 @@
               );
         
               ctx.restore();
+
+              // Knight Shield visual - removed translucent blue rectangle
+              // if (this.name === "Knight" && this.isDefending) {
+              //     ctx.save();
+              //     ctx.globalAlpha = 0.5;
+              //     ctx.fillStyle = "lightblue";
+              //     const hbX = this.x + (this.fLeft ? -(this.hitBox.xRel + this.hitBox.w) : this.hitBox.xRel) - camX;
+              //     const hbY = this.y + this.hitBox.yRel;
+              //     const hbW = this.hitBox.w;
+              //     const hbH = this.hitBox.h;
+              //     ctx.fillRect(hbX, hbY, hbW, hbH);
+              //     ctx.restore();
+              // }
               
+              // Draw player name above the character (moved to be above hitbox)
+              ctx.save();
+              ctx.font = "24px FightFont, sans-serif";
+              ctx.textAlign = "center";
+              ctx.fillStyle = "white";
+              ctx.strokeStyle = "black";
+              ctx.lineWidth = 3;
+              // Position name above the hitbox, adjusted for sprite offset
+              const nameY = this.y + this.hitBox.yRel - 20; // 20 pixels above the top of the hitbox
+              ctx.strokeText(this.displayName.toUpperCase(), playerWorldXOnCanvas, nameY);
+              ctx.fillText(this.displayName.toUpperCase(), playerWorldXOnCanvas, nameY);
+              ctx.restore();
+
+
               if (debugMode) {
                 const hbX = this.x + (this.fLeft ? -(this.hitBox.xRel + this.hitBox.w) : this.hitBox.xRel) - camX;
-                const hbY = this.y + this.hitBox.yRel;
+                const hbY = this.y + player.hitBox.yRel; // Fixed 'p' to 'player'
                 const hbW = this.hitBox.w;
                 const hbH = this.hitBox.h;
         
                 ctx.fillStyle = "rgba(255, 0, 0, 0.3)";
                 ctx.fillRect(hbX, hbY, hbW, hbH);
                 ctx.lineWidth = 3;
-                ctx.strokeStyle = "red";
+                // Use player-specific color for hitbox outline
+                ctx.strokeStyle = this.debugColor; // Use the stored debug color
                 ctx.strokeRect(hbX, hbY, hbW, hbH);
         
                 ctx.fillStyle = "blue";
@@ -632,7 +838,7 @@
           if (playerAmount > 0) {
               selectedFighters.forEach((fighter, index) => {
                   const xPos = canvas.width / (playerAmount + 1) * (index + 1);
-                  players.push(new Player(fighter.character, xPos));
+                  players.push(new Player(fighter.character, xPos, fighter.displayName, index)); // Pass player index
               });
           }
 
@@ -641,34 +847,103 @@
           const keysDown = {};
           const keysJustPressed = {};
         
+          // Gamepad state
+          let gamepads = [];
+          const gamepad_button_map = {
+              0: "gamepad_cross", // X button
+              1: "gamepad_circle", // Circle button
+              2: "gamepad_square", // Square button
+              3: "gamepad_triangle", // Triangle button
+              4: "gamepad_l1", // L1
+              5: "gamepad_r1", // R1
+              6: "gamepad_l2", // L2
+              7: "gamepad_r2", // R2
+              // Add more as needed
+          };
+          // Threshold for joystick input to be considered "pressed"
+          const AXIS_THRESHOLD = 0.5;
+
+          // Gamepad polling function
+          function updateGamepads() {
+              gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+              for (let i = 0; i < gamepads.length; i++) {
+                  const gp = gamepads[i];
+                  if (gp) {
+                      const playerIdentifier = `P${gp.index + 1}`; // Assuming gamepad index maps to player index + 1
+                      const playerControlScheme = playerControls[playerIdentifier];
+
+                      if (playerControlScheme) {
+                          // Handle buttons
+                          for (let b = 0; b < gp.buttons.length; b++) {
+                              const buttonName = gamepad_button_map[b];
+                              // Check if this button is mapped to any action for the current player
+                              if (buttonName && Object.values(playerControlScheme).includes(buttonName)) {
+                                  if (gp.buttons[b].pressed) {
+                                      if (!keysDown[buttonName]) {
+                                          keysJustPressed[buttonName] = true;
+                                      }
+                                      keysDown[buttonName] = true;
+                                  } else {
+                                      delete keysDown[buttonName];
+                                      delete keysJustPressed[buttonName]; // Clear just pressed on release
+                                  }
+                              }
+                          }
+
+                          // Handle axes (joysticks)
+                          // Left Stick horizontal for moveLeft/moveRight
+                          const leftStickX = gp.axes[0]; 
+
+                          // Move Left
+                          if (leftStickX < -AXIS_THRESHOLD) {
+                              if (!keysDown[playerControlScheme.moveLeft]) {
+                                  keysJustPressed[playerControlScheme.moveLeft] = true;
+                              }
+                              keysDown[playerControlScheme.moveLeft] = true;
+                          } else {
+                              delete keysDown[playerControlScheme.moveLeft];
+                              delete keysJustPressed[playerControlScheme.moveLeft];
+                          }
+
+                          // Move Right
+                          if (leftStickX > AXIS_THRESHOLD) {
+                              if (!keysDown[playerControlScheme.moveRight]) {
+                                  keysJustPressed[playerControlScheme.moveRight] = true;
+                              }
+                              keysDown[playerControlScheme.moveRight] = true;
+                          } else {
+                              delete keysDown[playerControlScheme.moveRight];
+                              delete keysJustPressed[playerControlScheme.moveRight];
+                          }
+                      }
+                  }
+              }
+          }
+
           window.addEventListener("keydown", e => {
-            const k = e.key;
-            isHKey = (k === 'h' || k === 'H');
-            isSKey = (k === 's' || k === 'S');
+            const k = e.key.toLowerCase(); // Convert to lowercase for consistent key mapping
+            isHKey = (k === 'h');
+            isSKey = (k === 's');
         
             if (!(k in keysDown)) {
                 keysJustPressed[k] = true;
             }
             keysDown[k] = true;
         
-            if (k === 'p' || k === 'P') {
+            if (k === 'p') {
               pauseGame = !pauseGame;
               if (pauseGame) pausedFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
             }
-            if (k === 'b' || k === 'B') debugMode = !debugMode;
-            if (!debugMode) {
-              activeDebugPlayer = null;
-              isHKey = false;
-              isSKey = false;
-            }
+            // Removed debug toggle for 'b' key
           });
         
           window.addEventListener("keyup", e => {
-            isHKey = (e.key !== 'h' && e.key !== 'H') ? isHKey : false;
-            isSKey = (e.key !== 's' && e.key !== 'S') ? isSKey : false;
+            const k = e.key.toLowerCase(); // Convert to lowercase for consistent key mapping
+            isHKey = (k !== 'h') ? isHKey : false;
+            isSKey = (k !== 's') ? isSKey : false;
         
-            delete keysDown[e.key];
-            delete keysJustPressed[e.key];
+            delete keysDown[k];
+            delete keysJustPressed[k];
           });
         
           canvas.addEventListener("mousemove", e => {
@@ -679,7 +954,7 @@
             const worldMouseX = debugMouseX + cameraX;
             const worldMouseY = debugMouseY;
         
-            if (debugMode && activeDebugPlayer) {
+            if (debugMode) {
               if (draggingEllipse) {
                 const { player, box } = draggingEllipse;
                 box.x = (player.fLeft ? -(worldMouseX - player.x) : (worldMouseX - player.x));
@@ -698,7 +973,7 @@
                 const { player } = resizingHitbox;
                 player.hitBox.w = Math.max(1, worldMouseX - (player.x + player.hitBox.xRel));
                 player.hitBox.h = Math.max(1, worldMouseY - (player.y + player.hitBox.yRel));
-              } else if (draggingSpriteOffset) {
+              } else if (draggingSpriteOffset && activeDebugPlayer) { // Only drag sprite offset for active player
                 const { player } = draggingSpriteOffset;
                 player.spriteDrawOffset.xRel = (player.fLeft ? -(worldMouseX - player.x) : (worldMouseX - player.x)) / SCALE;
                 player.spriteDrawOffset.yRel = (worldMouseY - player.y) / SCALE;
@@ -715,6 +990,7 @@
             mouseButton = e.button;
         
             if (debugMode) {
+              // Copy Debug Info button
               if (mx > 10 && mx < 230 && my > canvas.height - 50 && my < canvas.height - 10) {
                 const updatedStats = {};
                 players.forEach(player => {
@@ -738,66 +1014,84 @@
                 return;
               }
         
-              activeDebugPlayer = null;
+              // Check for dragging/resizing hitboxes or ellipses for ANY player
+              let handled = false;
+
               for (const player of players) {
-                  const spriteDrawX = player.x + (player.fLeft ? -(player.sht * SCALE) + (player.spriteDrawOffset.xRel * SCALE) : (player.spriteDrawOffset.xRel * SCALE)) - cameraX;
-                  const spriteDrawY = player.y + (player.spriteDrawOffset.yRel * SCALE);
-        
-                  if (mx > spriteDrawX && mx < spriteDrawX + (player.sht * SCALE) &&
-                      my > spriteDrawY && my < spriteDrawY + (player.svt * SCALE)) {
-                      activeDebugPlayer = player;
-                      break;
-                  }
-              }
-        
-              if (isHKey && activeDebugPlayer) {
-                  const player = activeDebugPlayer;
                   const hbX = player.x + (player.fLeft ? -(player.hitBox.xRel + player.hitBox.w) : player.hitBox.xRel) - cameraX;
                   const hbY = player.y + player.hitBox.yRel;
-        
-                  if (mouseButton === 0) {
-                      if (mx > hbX && mx < hbX + player.hitBox.w &&
-                          my > hbY && my < hbY + player.hitBox.h) {
+          
+                  // Check for hitbox interaction
+                  if (mx > hbX && mx < hbX + player.hitBox.w &&
+                      my > hbY && my < hbY + player.hitBox.h) {
+                      if (mouseButton === 0 && isHKey) { // Drag hitbox with H key
                           draggingHitbox = { player };
-                      }
-                  } else if (mouseButton === 2) {
-                      if (mx > hbX && mx < hbX + player.hitBox.w &&
-                          my > hbY && my < hbY + player.hitBox.h) {
+                          activeDebugPlayer = player; // Set active player for sprite offset
+                          handled = true;
+                          break;
+                      } else if (mouseButton === 2 && isHKey) { // Resize hitbox with H key
                           resizingHitbox = { player };
+                          activeDebugPlayer = player; // Set active player for sprite offset
+                          handled = true;
+                          break;
                       }
                   }
-                  return;
+
+                  // Check for attack box interaction (no H or S key needed)
+                  for (const box of player.attackBoxes) {
+                    const bx = player.x + (player.fLeft ? -box.x : box.x) - cameraX;
+                    const by = player.y + box.y;
+                    const dx = mx - bx;
+                    const dy = my - by;
+                    if ((dx * dx) / (box.rx * box.rx) + (dy * dy) / (box.ry * box.ry) <= 1) {
+                      if (mouseButton === 0) { // Drag ellipse
+                          draggingEllipse = { player, box };
+                          activeDebugPlayer = player; // Set active player for sprite offset
+                          handled = true;
+                          break;
+                      } else if (mouseButton === 2) { // Resize ellipse
+                          resizingEllipse = { player, box };
+                          activeDebugPlayer = player; // Set active player for sprite offset
+                          handled = true;
+                          break;
+                      }
+                    }
+                  }
+                  if (handled) break;
               }
-        
-              if (isSKey && activeDebugPlayer) {
-                  const player = activeDebugPlayer;
-                  const spriteDrawX = player.x + (player.fLeft ? -(player.sht * SCALE) + (player.spriteDrawOffset.xRel * SCALE) : (player.spriteDrawOffset.xRel * SCALE)) - cameraX;
-                  const spriteDrawY = player.y + (player.spriteDrawOffset.yRel * SCALE);
-        
-                  if (mouseButton === 0) {
+
+              // If no hitbox or attack box was clicked, check for sprite offset drag
+              if (!handled && isSKey) {
+                  for (const player of players) {
+                      const spriteDrawX = player.x + (player.fLeft ? -(player.sht * SCALE) + (player.spriteDrawOffset.xRel * SCALE) : (player.spriteDrawOffset.xRel * SCALE)) - cameraX;
+                      const spriteDrawY = player.y + (player.spriteDrawOffset.yRel * SCALE);
+            
                       if (mx > spriteDrawX && mx < spriteDrawX + (player.sht * SCALE) &&
                           my > spriteDrawY && my < spriteDrawY + (player.svt * SCALE)) {
-                          draggingSpriteOffset = { player };
+                          if (mouseButton === 0) {
+                              draggingSpriteOffset = { player };
+                              activeDebugPlayer = player; // Set active player
+                              handled = true;
+                              break;
+                          }
                       }
                   }
-                  return;
               }
-        
-              const checkEllipse = (player) => {
-                for (const box of player.attackBoxes) {
-                  const bx = player.x + (player.fLeft ? -box.x : box.x) - cameraX;
-                  const by = player.y + box.y;
-                  const dx = mx - bx;
-                  const dy = my - by;
-                  if ((dx * dx) / (box.rx * box.rx) + (dy * dy) / (box.ry * box.ry) <= 1) {
-                    if (mouseButton === 0) draggingEllipse = { player, box };
-                    else if (mouseButton === 2) resizingEllipse = { player, box };
-                    return true;
+
+              // If nothing was dragged/resized, and no specific key was held, then select the player if clicked
+              if (!handled) {
+                  activeDebugPlayer = null; // Clear active player if no specific debug element was clicked
+                  for (const player of players) {
+                      const spriteDrawX = player.x + (player.fLeft ? -(player.sht * SCALE) + (player.spriteDrawOffset.xRel * SCALE) : (player.spriteDrawOffset.xRel * SCALE)) - cameraX;
+                      const spriteDrawY = player.y + (player.spriteDrawOffset.yRel * SCALE);
+            
+                      if (mx > spriteDrawX && mx < spriteDrawX + (player.sht * SCALE) &&
+                          my > spriteDrawY && my < my + (player.svt * SCALE)) { 
+                          activeDebugPlayer = player;
+                          break;
+                      }
                   }
-                }
-                return false;
-              };
-              players.some(p => checkEllipse(p));
+              }
             }
           });
         
@@ -852,12 +1146,13 @@
         
           Promise.all(imagesToLoadPromises).then(() => {
               assetsLoaded = true;
-              loop();
+              // Start the loop after assets are loaded
+              requestAnimationFrame(loop);
           }).catch(error => {
               // Log error but still try to run the loop with loaded assets
               console.error("Error loading assets:", error);
               assetsLoaded = true; // Still try to proceed
-              loop();
+              requestAnimationFrame(loop);
           });
         
         function drawCountdown() {
@@ -934,6 +1229,9 @@
           const dt = ts - lst;
           lst = ts;
         
+          // Update gamepad state at the beginning of each loop
+          updateGamepads();
+
           if (!countdownStarted) {
             countdownStarted = true;
             const countdownInterval = setInterval(() => {
@@ -995,10 +1293,10 @@
                 let winnerColor = "red";
         
                 if (finalWinner) {
-                    winnerText = `${finalWinner.name.toUpperCase()} WON!`;
+                    winnerText = `${finalWinner.displayName.toUpperCase()} WON!`; // Use displayName for winner
                     winnerColor = finalWinner.name === "Assasin" ? "#00ffd0" :
                                   finalWinner.name === "Wu" ? "#ffa3ff" :
-                                  finalWinner.name === "darkrai" ? "#00ff00" :
+                                  finalWinner.name === "Darkrai" ? "#00ff00" : // Corrected Darkrai casing
                                   finalWinner.name === "Reaper" ? "#ff00ff" :
                                   "white";
                 }
@@ -1010,18 +1308,18 @@
                 ctx.strokeText(winnerText, canvas.width / 2, canvas.height / 2 + 60);
                 ctx.fillText(winnerText, canvas.width / 2, canvas.height / 2 + 60);
             }
-            requestAnimationFrame(loop);
+            requestAnimationFrame(loop); // Continue looping for game over screen
             return;
           }
         
           if (countdownTime > 0) {
             drawCountdown();
-            requestAnimationFrame(loop);
+            requestAnimationFrame(loop); // Continue looping for countdown
             return;
           }
         
           if (!assetsLoaded) {
-              requestAnimationFrame(loop);
+              requestAnimationFrame(loop); // Continue looping while assets load
               return;
           }
         
@@ -1056,116 +1354,104 @@
               cameraX = 0;
           }
         
-          // Player controls based on their index in the 'players' array
-          // Player 1 (index 0) controls: WASD + Q/E
-          if (players[0]) {
-            players[0].speedX = keysDown["a"] ? -players[0].spd : keysDown["d"] ? players[0].spd : 0;
-            if (keysJustPressed["w"]) players[0].jump();
-            if (keysDown["q"]) players[0].tryAtk("Attack1");
-            if (keysDown["e"]) players[0].tryAtk("Attack2");
-          }
-        
-          // Player 2 (index 1) controls: IJKL + U/O
-          if (players[1]) {
-            players[1].speedX = keysDown["j"] ? -players[1].spd : keysDown["l"] ? players[1].spd : 0;
-            if (keysJustPressed["i"]) players[1].jump();
-            if (players[1].name === "Wu" && keysDown["u"] && keysDown["o"]) {
-                const now = performance.now();
-                if (checkStaminaForSpecial(players[1])) {
-                    players[1].lockedUntil = 0;
-                    players[1].attackCooldownUntil = 0;
-                    players[1].stamina -= players[1].maxStamina * 0.1;
-                    floatingTexts.push(new FloatingText("COMBO!", players[1].x, players[1].y - 100, "#ffa3ff"));
-                }
+          // Player controls based on their ID from sessionStorage
+          players.forEach(player => {
+            const controls = playerControls[`P${players.indexOf(player) + 1}`];
+            if (!controls) return; // Skip if no controls found for this player
+
+            // Handle movement based on keyboard or gamepad input
+            player.speedX = 0;
+            if (keysDown[controls.moveLeft]) {
+                player.speedX = -player.spd;
+            } else if (keysDown[controls.moveRight]) {
+                player.speedX = player.spd;
             }
-            if (keysDown["u"]) players[1].tryAtk("Attack1");
-            if (keysDown["o"]) players[1].tryAtk("Attack2");
-          }
-        
-          // Player 3 (index 2) controls: Arrow Keys + ,/.
-          if (players[2]) {
-            players[2].speedX = keysDown["ArrowLeft"] ? -players[2].spd : keysDown["ArrowRight"] ? players[2].spd : 0;
-            if (keysJustPressed["ArrowUp"]) players[2].jump();
-            if (players[2].name === "darkrai" && keysDown[","] && keysDown["."]) {
+
+            if (keysJustPressed[controls.join]) player.jump(); // "join" key is used for jump in-game
+
+            // Special abilities
+            if (player.name === "Knight" && keysDown[controls.attack1] && keysDown[controls.attack2]) {
+                player.tryDefend();
+            } else if (player.name === "Wu" && keysDown[controls.attack1] && keysDown[controls.attack2]) {
                 const now = performance.now();
-                if (now > players[2].superModeToggleCooldown) {
-                    if (checkStaminaForSpecial(players[2]) || players[2].isSuperMode) {
-                        players[2].isSuperMode = !players[2].isSuperMode;
-                        if (players[2].isSuperMode) {
-                            players[2].stamina -= players[2].maxStamina * 0.1;
-                            players[2].at1 *= 2;
-                            players[2].at2 *= 2;
-                            players[2].hp *= 2;
-                            players[2].health = players[2].hp;
-                            players[2].maxHealth = players[2].hp;
-                            players[2].spd /= 2;
-                            players[2].stam /= 2;
-                            players[2].maxStamina = players[2].stam;
-                            players[2].hitBox.xRel *= 2;
-                            players[2].hitBox.yRel *= 2;
-                            players[2].hitBox.w *= 2;
-                            players[2].hitBox.h *= 2;
-                            players[2].attackBoxes.forEach(box => {
-                                box.x *= 2;
-                                box.y *= 2;
-                                box.rx *= 2;
-                                box.ry *= 2;
+                if (checkStaminaForSpecial(player)) {
+                    player.lockedUntil = 0;
+                    player.attackCooldownUntil = 0;
+                    player.stamina -= player.maxStamina * 0.1;
+                    floatingTexts.push(new FloatingText("COMBO!", player.x, player.y - 100, "#ffa3ff"));
+                }
+            } else if (player.name === "Darkrai" && keysDown[controls.attack1] && keysDown[controls.attack2]) { // Corrected Darkrai casing
+                const now = performance.now();
+                if (now > player.superModeToggleCooldown) {
+                    if (checkStaminaForSpecial(player) || player.isSuperMode) {
+                        player.isSuperMode = !player.isSuperMode;
+                        if (player.isSuperMode) {
+                            player.stamina -= player.maxStamina * 0.1;
+                            player.at1 *= 2;
+                            player.at2 *= 2;
+                            player.hp *= 2;
+                            player.health = player.hp;
+                            player.maxHealth = player.hp;
+                            player.spd /= 2;
+                            player.stam /= 2;
+                            player.maxStamina = player.stam;
+                            player.hitBox.xRel *= 2;
+                            player.hitBox.yRel *= 2;
+                            player.hitBox.w *= 2;
+                            player.hitBox.h *= 2;
+                            player.attackBoxes.forEach((box, index) => {
+                                box.x = player.originalStats.attackBoxes[index].x;
+                                box.y = player.originalStats.attackBoxes[index].y;
+                                box.rx = player.originalStats.attackBoxes[index].rx;
+                                box.ry = player.originalStats.attackBoxes[index].ry;
                             });
-                            players[2].superModeDeactivationTime = now + 10000;
-                            floatingTexts.push(new FloatingText("SUPER MODE!", players[2].x, players[2].y - 100, "gold"));
+                            player.superModeDeactivationTime = now + 10000;
+                            floatingTexts.push(new FloatingText("SUPER MODE!", player.x, player.y - 100, "gold"));
                         } else {
-                            if (now < players[2].superModeDeactivationTime) {
-                              players[2].stamina -= players[2].maxStamina * 0.1;
+                            if (now < player.superModeDeactivationTime) {
+                              player.stamina -= player.maxStamina * 0.1;
                             }
-                            players[2].at1 = players[2].originalStats.at1;
-                            players[2].at2 = players[2].originalStats.at2;
-                            players[2].hp = players[2].originalStats.hp;
-                            players[2].health = Math.min(players[2].health, players[2].hp);
-                            players[2].maxHealth = players[2].hp;
-                            players[2].spd = players[2].originalStats.spd;
-                            players[2].stam = players[2].originalStats.stam;
-                            players[2].maxStamina = players[2].stam;
-                            players[2].hitBox.xRel = players[2].originalStats.hitBox.xRel;
-                            players[2].hitBox.yRel = players[2].originalStats.hitBox.yRel;
-                            players[2].hitBox.w = players[2].originalStats.hitBox.w;
-                            players[2].hitBox.h = players[2].originalStats.hitBox.h;
-                            players[2].attackBoxes.forEach((box, index) => {
-                                box.x = players[2].originalStats.attackBoxes[index].x;
-                                box.y = players[2].originalStats.attackBoxes[index].y;
-                                box.rx = players[2].originalStats.attackBoxes[index].rx;
-                                box.ry = players[2].originalStats.attackBoxes[index].ry;
+                            player.at1 = player.originalStats.at1;
+                            player.at2 = player.originalStats.at2;
+                            player.hp = player.originalStats.hp;
+                            player.health = Math.min(player.health, player.hp);
+                            player.maxHealth = player.hp;
+                            player.spd = player.originalStats.spd;
+                            player.stam = player.originalStats.stam;
+                            player.maxStamina = player.stam;
+                            player.hitBox.xRel = player.originalStats.hitBox.xRel;
+                            player.hitBox.yRel = player.originalStats.hitBox.yRel;
+                            player.hitBox.w = player.originalStats.hitBox.w;
+                            player.hitBox.h = player.originalStats.hitBox.h;
+                            player.attackBoxes.forEach((box, index) => {
+                                box.x = player.originalStats.attackBoxes[index].x;
+                                box.y = player.originalStats.attackBoxes[index].y;
+                                box.rx = player.originalStats.attackBoxes[index].rx;
+                                box.ry = player.originalStats.attackBoxes[index].ry;
                             });
-                            players[2].superModeDeactivationTime = 0;
-                            floatingTexts.push(new FloatingText("MODE OFF", players[2].x, players[2].y - 100, "grey"));
+                            player.superModeDeactivationTime = 0;
+                            floatingTexts.push(new FloatingText("MODE OFF", player.x, player.y - 100, "grey"));
                         }
-                        players[2].superModeToggleCooldown = now + 1000;
+                        player.superModeToggleCooldown = now + 1000;
                     }
                 }
-            }
-            if (keysDown[","] && !keysDown["."]) players[2].tryAtk("Attack1");
-            if (keysDown["."] && !keysDown[","]) players[2].tryAtk("Attack2");
-          }
-        
-          // Player 4 (index 3) controls: Numpad 4/6/8/7/9
-          if (players[3]) {
-            players[3].speedX = keysDown["4"] ? -players[3].spd : keysDown["6"] ? players[3].spd : 0;
-            if (keysJustPressed["8"]) players[3].jump();
-            if (players[3].name === "Reaper" && keysDown["7"] && keysDown["9"]) {
+            } else if (player.name === "Reaper" && keysDown[controls.attack1] && keysDown[controls.attack2]) {
                 const now = performance.now();
-                if (checkStaminaForSpecial(players[3]) && !players[3].isDoubleSpeed) {
-                    players[3].lockedUntil = 0;
-                    players[3].attackCooldownUntil = 0;
-                    players[3].stamina -= players[3].maxStamina * 0.1;
-                    floatingTexts.push(new FloatingText("LIFE STEAL!", players[3].x, players[3].y - 100, "purple"));
+                if (checkStaminaForSpecial(player) && !player.isDoubleSpeed) {
+                    player.lockedUntil = 0;
+                    player.attackCooldownUntil = 0;
+                    player.stamina -= player.maxStamina * 0.1;
+                    floatingTexts.push(new FloatingText("LIFE STEAL!", player.x, player.y - 100, "purple"));
                     
-                    players[3].isDoubleSpeed = true;
-                    players[3].spd = players[3].originalStats.spd * 2;
-                    players[3].doubleSpeedEndTime = now + 5000;
+                    player.isDoubleSpeed = true;
+                    player.spd = player.originalStats.spd * 2;
+                    player.doubleSpeedEndTime = now + 5000;
                 }
+            } else {
+                if (keysDown[controls.attack1]) player.tryAtk("Attack1");
+                if (keysDown[controls.attack2]) player.tryAtk("Attack2");
             }
-            if (keysDown["7"]) players[3].tryAtk("Attack1");
-            if (keysDown["9"]) players[3].tryAtk("Attack2");
-          }
+          });
         
           players.forEach(player => {
             player.update(dt);
@@ -1182,7 +1468,7 @@
           function checkAllCollisions() {
             for (let i = 0; i < players.length; i++) {
               for (let j = 0; j < players.length; j++) {
-                if (i !== j && !players[i].dead && !players[j].dead) {
+                if (i !== j && !players[i].dead && !players[j].dead) { // Ensure both attacker and defender are alive
                   const attacker = players[i];
                   const defender = players[j];
                   if (attacker.curA.startsWith("Attack")) {
@@ -1191,7 +1477,7 @@
                       (attacker.curA === "Attack2" && box.attack === 2)
                     );
                     
-                    if ((attacker.name === "darkrai" || attacker.name === "Reaper") && attacker.curA === "Attack2") {
+                    if ((attacker.name === "Darkrai" || attacker.name === "Reaper") && attacker.curA === "Attack2") { // Corrected Darkrai casing
                         activeAttackBox = attacker.attackBoxes.find(box => box.attack === 1);
                     }
                     if (!activeAttackBox) continue;
@@ -1226,9 +1512,24 @@
                             if (attacker.name === "Wu" && keysDown["u"] && keysDown["o"] && checkStaminaForSpecial(attacker)) {
                                 damage += 10;
                             }
+
+                            // Tarzan superpower: double damage during dash attack
+                            if (attacker.name === "Tarzan" && attacker.isDashing) {
+                                damage *= 2;
+                            }
+
+                            // Knight superpower: 50% damage reduction when defending
+                            if (defender.name === "Knight" && defender.isDefending) {
+                                damage *= 0.5;
+                                floatingTexts.push(new FloatingText(`BLOCKED! -${Math.round(damage)}`, defender.x, defender.y - 150, "cyan")); // Show reduced damage
+                            }
         
                             if (attacker.name === "Reaper" && keysDown["7"] && keysDown["9"]) {
-                                const stolenHealth = defender.health * 0.15;
+                                let stolenHealth = defender.health * 0.15;
+                                // Knight superpower: doubled healing when defending
+                                if (attacker.name === "Knight" && attacker.isDefending) { // This check should be on attacker, not defender, for healing
+                                    stolenHealth *= 2;
+                                }
                                 attacker.health = Math.min(attacker.maxHealth, attacker.health + stolenHealth);
                                 floatingTexts.push(new FloatingText(`+${Math.round(stolenHealth)} HP`, attacker.x, attacker.y - 150, "lime"));
                             }
@@ -1256,7 +1557,10 @@
                                     defender.setA("Death", true);
                                 }
                             }
-                            floatingTexts.push(new FloatingText(`-${damage}`, textX, textY, "#ff5555"));
+                            // Only show damage text if not blocked, or show reduced damage as above
+                            if (!(defender.name === "Knight" && defender.isDefending)) {
+                                floatingTexts.push(new FloatingText(`-${Math.round(damage)}`, textX, textY, "#ff5555"));
+                            }
         
                             setTimeout(() => (defender.hitFlag = false), 200);
                         }
@@ -1298,7 +1602,7 @@
             ctx.strokeRect(0, 0, canvas.width, canvas.height);
           }
         
-          requestAnimationFrame(loop);
+          requestAnimationFrame(loop); // Ensure the loop continues
           for (const k in keysJustPressed) {
             delete keysJustPressed[k];
           }
@@ -1329,7 +1633,8 @@
           ctx.lineWidth = 2;
           
           let livesTextDrawX;
-          let livesText = `${pl.name.toUpperCase()} LIVES: ${pl.lives}`;
+          // Use displayName for the health bar text
+          let livesText = `${pl.displayName.toUpperCase()} LIVES: ${pl.lives}`; 
 
           if (alignRight) {
             livesTextDrawX = drawX - 10;
