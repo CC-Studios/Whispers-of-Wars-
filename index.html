@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>HOME</title>
+  <title>Whispers of War</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     html, body {
@@ -24,33 +24,68 @@
 <canvas id="homeCanvas"></canvas>
 <script>
 (() => {
-  const player1Keys = ["W", "A", "S", "D", "Q", "E"]
-  const player2Keys = ["I", "J", "K", "L", "U", "O"]
-  const player3Keys = ["ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight", "/", "."]
-  const player4Keys = ["8", "4", "5", "6", "7", "9"]
-  const player5Keys = ["T", "F", "G", "H", "R", "Y"]
-  const player6Keys = ["Z", "X", "C", "V", "A", "S"]
-
   const canvas = document.getElementById("homeCanvas")
   const ctx = canvas.getContext("2d")
+  // imageSmoothingEnabled will be set at the very end of the initial script execution
 
   const hexagonRadius = 80
   const centerIndex = 0
   let allHexagons = []
 
-  let gameState = 'MAIN_MENU'; // 'MAIN_MENU', 'PLAYER_COUNT_OPTIONS', 'CHARACTER_SELECTION'
+  let gameState = 'MAIN_MENU'; // 'MAIN_MENU', 'PLAYER_COUNT_OPTIONS', 'KEYBINDING_OPTIONS', 'CHARACTER_SELECTION'
   let maxPlayers = 2; // Default to 2 players
 
+  // Ring colors (maintained for 6 players)
   const ringColors = ["#ff0033", "#00aaff", "#00ff7f", "#ff9900", "#9932cc", "#ff1493"]
-  const playerKeyMap = {
-    P1: { movement: [player1Keys[1].toLowerCase(), player1Keys[3].toLowerCase()], join: [player1Keys[0].toLowerCase()], color: ringColors[0] },
-    P2: { movement: [player2Keys[1].toLowerCase(), player2Keys[3].toLowerCase()], join: [player2Keys[0].toLowerCase()], color: ringColors[1] },
-    P3: { movement: [player3Keys[1].toLowerCase(), player3Keys[3].toLowerCase()], join: [player3Keys[0].toLowerCase()], color: ringColors[2] },
-    P4: { movement: [player4Keys[1], player4Keys[3]], join: [player4Keys[0]], color: ringColors[3] },
-    P5: { movement: [player5Keys[1].toLowerCase(), player5Keys[3].toLowerCase()], join: [player5Keys[0].toLowerCase()], color: ringColors[4] },
-    P6: { movement: [player6Keys[1].toLowerCase(), player6Keys[3].toLowerCase()], join: [player6Keys[0].toLowerCase()], color: ringColors[5]}
+
+  // Initial default keybinds for each player and their actions
+  const defaultPlayerKeybinds = {
+    P1: { join: "w", moveLeft: "a", moveRight: "d", attack1: "q", attack2: "e", displayName: "P1" },
+    P2: { join: "i", moveLeft: "j", moveRight: "l", attack1: "u", attack2: "o", displayName: "P2" },
+    P3: { join: "arrowup", moveLeft: "arrowleft", moveRight: "arrowright", attack1: "/", attack2: ".", displayName: "P3" },
+    P4: { join: "8", moveLeft: "4", moveRight: "6", attack1: "7", attack2: "9", displayName: "P4" },
+    // PS5 Controller defaults
+    P5: { join: "gamepad_cross", moveLeft: "gamepad_left_stick_left", moveRight: "gamepad_left_stick_right", attack1: "gamepad_triangle", attack2: "gamepad_circle", displayName: "P5" }, 
+    P6: { join: "gamepad_cross", moveLeft: "gamepad_left_stick_left", moveRight: "gamepad_left_stick_right", attack1: "gamepad_triangle", attack2: "gamepad_circle", displayName: "P6" }  
+  };
+
+  let playerKeyMap = {}; // This will be the mutable map storing current keybinds
+
+  // Function to initialize or reset playerKeyMap
+  function initializePlayerKeyMap() {
+    playerKeyMap = {};
+    Object.keys(defaultPlayerKeybinds).forEach(playerId => {
+      playerKeyMap[playerId] = {
+        keys: { ...defaultPlayerKeybinds[playerId] },
+        color: ringColors[parseInt(playerId.replace('P', '')) - 1]
+      };
+    });
   }
 
+  initializePlayerKeyMap(); // Call on script load
+
+  let currentKeybindEditing = {
+    player: null,
+    action: null,
+    listening: false
+  };
+
+  let currentNameEditing = { // New state for name editing
+    player: null,
+    listening: false
+  };
+
+  // Dropdown state for player count
+  let isPlayerCountDropdownOpen = false;
+  const playerCountOptions = [2, 3, 4, 5, 6];
+  const dropdownRect = {
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 60
+  };
+
+  // Background images (now randomized)
   const bgPaths = [
     "Assets/Background1/Battleground1.png",
     "Assets/Background2/Battleground2.png",
@@ -60,18 +95,18 @@
     "Assets/Background6/Battleground6.png",
     "Assets/Background7/Battleground7.png",
     "Assets/Background8/Battleground8.png"
-  ]
-
-  const bgImage = new Image()
-  bgImage.src = bgPaths[Math.floor(Math.random() * bgPaths.length)]
-  let bgX = 0
+  ];
+  const bgImage = new Image();
+  bgImage.src = bgPaths[Math.floor(Math.random() * bgPaths.length)]; // Random background
+  let bgX = 0 // Keeping parallax scrolling logic
   const bgSpeed = 1
 
   const players = {}
 
+  // Character sprites (size values updated as per user's request)
   const characterSprites = [
     { name: "Wu", path: "Assets/Wu/Idle.png", frameCount: 8, frameWidth: 200, frameHeight: 200, row: 0, size: 7 },
-    { name: "Tarzan", path: "Assets/Tarzan/Idle.png", frameCount: 10, frameWidth: 126, frameHeight: 126, row: 0, size: 4 },
+    { name: "Tarzan", path: "Assets/Tarzan/Idle.png", frameCount: 10, frameWidth: 126, frameHeight: 126, row: 0, size: 4 }, // Added Tarzan
     { name: "Knight", path: "Assets/Knight/IDLE.png", frameCount: 7, frameWidth: 96, frameHeight: 84, row: 0, size: 4 },
     { name: "Assasin", path: "Assets/Assasin/Idle.png", frameCount: 4, frameWidth: 200, frameHeight: 200, row: 0, size: 7 },
     { name: "Darkrai", path: "Assets/Darkdude.png", frameCount: 6, frameWidth: 80, frameHeight: 80, row: 0, size: 4 },
@@ -86,42 +121,65 @@
   })
 
   const bannerImg = new Image()
-  bannerImg.src = "Assets/banner.png" // Corrected path to lowercase 'banner'
+  bannerImg.src = "Assets/Banner.png"
 
-  const buttonImg = new Image()
-  buttonImg.src = "Assets/Button.png" // Top-right "START" button
+  const buttonImg = new Image() // Used for start game on character selection only
+  buttonImg.src = "Assets/Button.png"
 
-  const buttonsImage = new Image()
-  buttonsImage.src = "Assets/Buttons.png" // Main "PLAY" button graphic
+  const buttonsImage = new Image() // Main "PLAY" button graphic on home screen (Assets/Buttons.png)
+  buttonsImage.src = "Assets/Buttons.png"
 
-
-  // Button definitions
+  // Main menu button polygons (from previous turn's output)
   const mainMenuButtons = {
-      play: {
-          // These are points from the original polygon for the "PLAY" image
-          poly: [{ x: 855, y: 82 }, { x: 571, y: 98 }, { x: 518, y: 151 }, { x: 590, y: 227 }, { x: 862, y: 205 }],
-          img: buttonsImage // The large "PLAY" button graphic
-      },
-      options: {
-          // Positioned below the main play button
-          rect: { x: canvas.width / 2 - 75, y: canvas.height / 2 + 100, width: 150, height: 50 },
-          text: "OPTIONS"
-      }
+        play: {
+            poly: [
+                { x: 855, y: 82 },
+                { x: 571, y: 98 },
+                { x: 518, y: 151 },
+                { x: 590, y: 227 },
+                { x: 862, y: 205 }
+            ]
+        },
+        options: {
+            poly: [
+                { x: 534, y: 241 },
+                { x: 532, y: 344 },
+                { x: 579, y: 378 },
+                { x: 857, y: 392 },
+                { x: 866, y: 290 },
+                { x: 830, y: 256 }
+            ]
+        },
+        how: {
+            poly: [
+                { x: 537, y: 413 },
+                { x: 544, y: 537 },
+                { x: 818, y: 525 },
+                { x: 890, y: 455 },
+                { x: 830, y: 404 }
+            ]
+        }
+    };
+
+  // Buttons for options screens
+  const optionsButtons = {
+      buttonWidth: 200,
+      buttonHeight: 60,
+      keybinds: { label: "KEYBINDS" },
+      resetKeybinds: { label: "RESET KEYBINDS" }, // New button
+      back: { label: "BACK" }
   };
 
-  const playerCountOptionsButtons = {
-      playerCounts: [
-          { label: "2 PLAYERS", value: 2, rect: { x: canvas.width / 2 - 250, y: canvas.height / 2 - 50, width: 150, height: 50 } },
-          { label: "3 PLAYERS", value: 3, rect: { x: canvas.width / 2 - 75, y: canvas.height / 2 - 50, width: 150, height: 50 } },
-          { label: "4 PLAYERS", value: 4, rect: { x: canvas.width / 2 + 100, y: canvas.height / 2 - 50, width: 150, height: 50 } },
-          { label: "5 PLAYERS", value: 5, rect: { x: canvas.width / 2 - 250, y: canvas.height / 2 + 20, width: 150, height: 50 } },
-          { label: "6 PLAYERS", value: 6, rect: { x: canvas.width / 2 - 75, y: canvas.height / 2 + 20, width: 150, height: 50 } },
-      ],
-      back: {
-          rect: { x: canvas.width / 2 + 100, y: canvas.height / 2 + 20, width: 150, height: 50 },
-          text: "BACK"
-      }
+  // Define player actions for keybinding display
+  const playerActions = {
+    join: "Jump", // Changed label to Jump for clarity
+    moveLeft: "Left",
+    moveRight: "Right",
+    attack1: "Attack 1",
+    attack2: "Attack 2",
+    displayName: "Name" // Added for the name input label
   };
+
 
   let spriteIndex = 0
   let spriteTimer = 0
@@ -130,27 +188,138 @@
   function resizeCanvas() {
     canvas.width = window.innerWidth
     canvas.height = window.innerHeight
-    // Recalculate options button position on resize
-    mainMenuButtons.options.rect.x = canvas.width / 2 - mainMenuButtons.options.rect.width / 2;
-    playerCountOptionsButtons.playerCounts[0].rect.x = canvas.width / 2 - 250;
-    playerCountOptionsButtons.playerCounts[1].rect.x = canvas.width / 2 - 75;
-    playerCountOptionsButtons.playerCounts[2].rect.x = canvas.width / 2 + 100;
-    playerCountOptionsButtons.playerCounts[3].rect.x = canvas.width / 2 - 250;
-    playerCountOptionsButtons.playerCounts[4].rect.x = canvas.width / 2 - 75;
-    playerCountOptionsButtons.back.rect.x = canvas.width / 2 + 100;
+
+    // Position dropdown (character amount select) in the middle
+    dropdownRect.x = canvas.width / 2 - dropdownRect.width / 2;
+    dropdownRect.y = canvas.height / 2 - (dropdownRect.height * (1 + (playerCountOptions.length / 2)) + 30); // Adjusted to account for dropdown options height
+
+    // Position "RESET KEYBINDS" and "KEYBINDS" buttons in the middle with a gap
+    const buttonsCommonY = dropdownRect.y + dropdownRect.height * (playerCountOptions.length + 1) + 20;
+    const buttonGap = 20; // Gap between the two buttons
+    const totalButtonsWidth = (optionsButtons.buttonWidth * 2) + buttonGap;
+
+    optionsButtons.resetKeybinds.x = canvas.width / 2 - totalButtonsWidth / 2; // Left button of the pair
+    optionsButtons.resetKeybinds.y = buttonsCommonY;
+
+    optionsButtons.keybinds.x = canvas.width / 2 + totalButtonsWidth / 2 - optionsButtons.buttonWidth; // Right button of the pair
+    optionsButtons.keybinds.y = buttonsCommonY;
+
+    // Back button always in bottom-left
+    optionsButtons.back.x = 30; // 30px from left edge
+    optionsButtons.back.y = canvas.height - optionsButtons.buttonHeight - 30; // 30px from bottom edge
   }
 
   window.addEventListener("resize", resizeCanvas)
   resizeCanvas() // Initial call to set sizes
 
+  // Function to handle global keydown events for character selection and key remapping
+  function handleKeyDown(e) {
+    const key = e.key; // Use raw key for comparison, to handle "ArrowUp" etc.
+
+    if (currentKeybindEditing.listening) {
+      e.preventDefault(); // Prevent default browser action for the key pressed
+      const player = playerKeyMap[currentKeybindEditing.player];
+      if (player && player.keys) {
+        player.keys[currentKeybindEditing.action] = key.toLowerCase(); // Store in lowercase
+        console.log(`Key for ${currentKeybindEditing.player} ${currentKeybindEditing.action} set to: ${key}`);
+      }
+      currentKeybindEditing.listening = false; // Exit listening mode
+      return; // Stop further processing
+    }
+
+    if (currentNameEditing.listening) { // Handle name input
+        e.preventDefault();
+        const player = playerKeyMap[currentNameEditing.player];
+        if (player && player.keys) {
+            if (key === "Backspace") {
+                player.keys.displayName = player.keys.displayName.slice(0, -1);
+            } else if (key.length === 1 && /^[a-zA-Z0-9]$/.test(key)) { // Allow alphanumeric
+                if (player.keys.displayName.length < 10) { // Limit name length
+                    player.keys.displayName += key.toUpperCase(); // Store uppercase
+                }
+            } else if (key === "Enter") {
+                currentNameEditing.listening = false;
+            }
+        }
+        return;
+    }
+
+    if (gameState !== 'CHARACTER_SELECTION') {
+        return;
+    }
+
+    Object.entries(playerKeyMap).forEach(([id, data]) => {
+      const playerNum = parseInt(id.replace('P', ''));
+
+      // Check if this player (P1, P2, etc.) is allowed based on maxPlayers
+      if (playerNum > maxPlayers) {
+        return; // This player's keys are not active for the current maxPlayers setting
+      }
+
+      // Joining a character
+      if (!players[id] && data.keys.join && data.keys.join.toLowerCase() === key.toLowerCase()) {
+        if (Object.keys(players).length < maxPlayers) {
+            players[id] = { hex: centerIndex, character: "", displayName: data.keys.displayName }; // Initialize with no character selected
+            console.log(`${id} joined. Current players: ${Object.keys(players).length}`);
+        } else {
+            console.log(`Cannot join, max players (${maxPlayers}) reached.`);
+        }
+        return;
+      }
+
+      // Moving character selection
+      const player = players[id]
+      if (player) {
+        if (data.keys.moveLeft && data.keys.moveLeft.toLowerCase() === key.toLowerCase()) {
+          let next = player.hex;
+          if (player.hex === centerIndex) {
+              next = TOTAL_CHARACTER_SLOTS; // Left from center goes to last
+          } else {
+              next = (player.hex - 1 === 0) ? TOTAL_CHARACTER_SLOTS : player.hex - 1;
+          }
+          players[id].hex = next;
+          updatePlayerCharacter(id, next);
+        } else if (data.keys.moveRight && data.keys.moveRight.toLowerCase() === key.toLowerCase()) {
+          let next = player.hex;
+          if (player.hex === centerIndex) {
+              next = 1; // Right from center goes to first
+          } else {
+              next = (player.hex % TOTAL_CHARACTER_SLOTS) + 1;
+          }
+          players[id].hex = next;
+          updatePlayerCharacter(id, next);
+        }
+      }
+    })
+  }
+
+  window.addEventListener("keydown", handleKeyDown);
+
+  function updatePlayerCharacter(id, hexIndex) {
+    if (hexIndex === centerIndex) {
+      delete players[id]; // Player returns to center, effectively unselecting character
+    } else {
+      const sprite = characterSprites[hexIndex - 1]; // Adjust spriteImages index
+      players[id].character = sprite?.name || "";
+    }
+  }
+
+
   canvas.addEventListener("click", e => {
     const r = canvas.getBoundingClientRect()
     const x = e.clientX - r.left
     const y = e.clientY - r.top
-    const p = { x, y }
+    const p = { x, y } 
+
+    if (currentKeybindEditing.listening || currentNameEditing.listening) {
+      // If currently listening for a keybind or name, a click anywhere else stops listening
+      currentKeybindEditing.listening = false;
+      currentNameEditing.listening = false;
+      return; // Ignore click if it was just to stop listening
+    }
 
     if (gameState === 'MAIN_MENU') {
-        // Click on "PLAY" button (large image)
+        // Click on "PLAY" button
         if (isPointInPolygon(p, mainMenuButtons.play.poly)) {
             gameState = 'CHARACTER_SELECTION';
             setupHexagons();
@@ -162,146 +331,210 @@
             }
         }
         // Click on "OPTIONS" button
-        else if (isPointInRect(p, mainMenuButtons.options.rect)) {
+        else if (isPointInPolygon(p, mainMenuButtons.options.poly)) {
             gameState = 'PLAYER_COUNT_OPTIONS';
         }
+        // Click on "HOW" button
+        else if (isPointInPolygon(p, mainMenuButtons.how.poly)) {
+            alert("HOW button clicked! Implement game instructions here."); // Placeholder for HOW button logic
+        }
     } else if (gameState === 'PLAYER_COUNT_OPTIONS') {
-        // Click on player count buttons
-        for (const btn of playerCountOptionsButtons.playerCounts) {
-            if (isPointInRect(p, btn.rect)) {
-                maxPlayers = btn.value;
-                console.log(`Max players set to ${maxPlayers}`);
-                // Remove players beyond the new maxPlayers limit
-                Object.keys(players).forEach(id => {
-                    const playerNum = parseInt(id.replace('P', ''));
-                    if (playerNum > maxPlayers) {
-                        delete players[id];
-                    }
-                });
-                gameState = 'MAIN_MENU'; // Return to main menu after selection
-                return; // Exit loop and handler
+        // Handle dropdown click
+        if (isPointInRect(p, dropdownRect)) {
+            isPlayerCountDropdownOpen = !isPlayerCountDropdownOpen;
+        } else if (isPlayerCountDropdownOpen) {
+            // Check if an option in the dropdown was clicked
+            const optionHeight = dropdownRect.height;
+            for (let i = 0; i < playerCountOptions.length; i++) {
+                const optionY = dropdownRect.y + dropdownRect.height + (i * optionHeight);
+                const optionRect = {x: dropdownRect.x, y: optionY, width: dropdownRect.width, height: optionHeight};
+                if (isPointInRect(p, optionRect)) {
+                    maxPlayers = playerCountOptions[i];
+                    console.log(`Max players set to ${maxPlayers}`);
+                    // Remove players beyond the new maxPlayers limit if already selected
+                    Object.keys(players).forEach(id => {
+                        const playerNum = parseInt(id.replace('P', ''));
+                        if (playerNum > maxPlayers) {
+                            delete players[id];
+                        }
+                    });
+                    isPlayerCountDropdownOpen = false; // Close dropdown after selection
+                    return;
+                }
             }
-        }
-        // Click on "BACK" button
-        if (isPointInRect(p, playerCountOptionsButtons.back.rect)) {
-            gameState = 'MAIN_MENU';
-        }
-    } else if (gameState === 'CHARACTER_SELECTION') {
-        // "START GAME" button (top right)
-        if (x >= canvas.width - 120 && y <= 80) {
-            const payload = Object.entries(players).map(([id, p]) => ({
-                id,
-                character: p.character
-            }));
-
-            // Filter out players who are still on the center hexagon (haven't picked a character)
-            const activePlayers = payload.filter(player => players[player.id].hex !== centerIndex);
-
-            if (activePlayers.length === 0) {
-                alert("Please select at least one character to start the game!");
-                return;
-            }
-
-            sessionStorage.setItem("fighters", JSON.stringify(activePlayers));
-
-            const controls = {
-                P1: player1Keys,
-                P2: player2Keys,
-                P3: player3Keys,
-                P4: player4Keys,
-                P5: player5Keys,
-                P6: player6Keys
-            }
-            sessionStorage.setItem("controls", JSON.stringify(controls));
-
-            sessionStorage.setItem("playerCount", activePlayers.length);
-            location.href = "game.html";
-        }
-    }
-  })
-
-  window.addEventListener("keydown", e => {
-    // Only process keydowns for character selection if in the correct game state
-    if (gameState !== 'CHARACTER_SELECTION') {
-        return;
-    }
-
-    const key = e.key.toLowerCase()
-    Object.entries(playerKeyMap).forEach(([id, data]) => {
-      const playerNum = parseInt(id.replace('P', ''));
-
-      // Check if this player (P1, P2, etc.) is allowed based on maxPlayers
-      if (playerNum > maxPlayers) {
-        return; // This player's keys are not active for the current maxPlayers setting
-      }
-
-      // Joining a character
-      if (!players[id] && data.join.includes(key)) {
-        if (Object.keys(players).length < maxPlayers) {
-            players[id] = { hex: centerIndex, character: "" }; // Initialize with no character selected
-            console.log(`${id} joined. Current players: ${Object.keys(players).length}`);
-        } else {
-            console.log(`Cannot join, max players (${maxPlayers}) reached.`);
-        }
-        return;
-      }
-
-      // Moving character selection
-      const player = players[id]
-      if (player && data.movement.includes(key)) {
-        const moveRight = data.movement.indexOf(key) === 1
-        let next = player.hex;
-
-        // If currently on center (0), moving right goes to 1, moving left goes to last character slot
-        if (player.hex === centerIndex) {
-            next = moveRight ? 1 : TOTAL_CHARACTER_SLOTS;
-        } else {
-            // Otherwise, cycle through the outer hexagons (1 to TOTAL_CHARACTER_SLOTS)
-            if (moveRight) {
-                next = (player.hex % TOTAL_CHARACTER_SLOTS) + 1;
-            } else {
-                next = (player.hex - 1 === 0) ? TOTAL_CHARACTER_SLOTS : player.hex - 1;
-            }
+            isPlayerCountDropdownOpen = false; // Close dropdown if clicked outside options
         }
         
-        players[id].hex = next;
-        // If moving back to center hex (0), it means they left character selection
-        if (next === centerIndex) { // This condition should ideally not be reached with the new logic, but kept as a safeguard
-          delete players[id];
-        } else {
-          // Adjust spriteImages index: characterSprites[next - 1] since array is 0-indexed
-          const sprite = characterSprites[next - 1];
-          players[id].character = sprite?.name || "";
+        // Click on "KEYBINDS" button
+        const keybindsBtnRect = {x: optionsButtons.keybinds.x, y: optionsButtons.keybinds.y, width: optionsButtons.buttonWidth, height: optionsButtons.buttonHeight};
+        if (isPointInRect(p, keybindsBtnRect)) {
+            gameState = 'KEYBINDING_OPTIONS';
         }
+
+        // Click on "RESET KEYBINDS" button
+        const resetKeybindsBtnRect = {x: optionsButtons.resetKeybinds.x, y: optionsButtons.resetKeybinds.y, width: optionsButtons.buttonWidth, height: optionsButtons.buttonHeight};
+        if (isPointInRect(p, resetKeybindsBtnRect)) {
+            initializePlayerKeyMap(); // Reset keybinds to default
+            alert("Keybinds have been reset to default!"); // Simple alert for confirmation
+        }
+
+        // Click on "BACK" button
+        const backBtnRect = {x: optionsButtons.back.x, y: optionsButtons.back.y, width: optionsButtons.buttonWidth, height: optionsButtons.buttonHeight};
+        if (isPointInRect(p, backBtnRect)) {
+            gameState = 'MAIN_MENU';
+            isPlayerCountDropdownOpen = false; // Close dropdown on state change
+        }
+    } else if (gameState === 'KEYBINDING_OPTIONS') {
+        // Define key button dimensions and spacing for click detection
+        const keyButtonWidth = 80; // Increased width to accommodate longer gamepad names
+        const keyButtonHeight = 50;
+        const keyHorizontalSpacing = 10;
+        const keyVerticalSpacing = 10;
+        const playerSectionWidth = keyButtonWidth * 3 + keyHorizontalSpacing * 2; // Adjusted width for a player's key layout
+        const playersPerRow = Math.floor(canvas.width / (playerSectionWidth + 50));
+        const playerSectionXOffset = (canvas.width - (playersPerRow * (playerSectionWidth + 50))) / 2;
+
+
+        Object.keys(playerKeyMap).forEach((playerId, playerIndex) => {
+            const playerRow = Math.floor(playerIndex / playersPerRow);
+            const playerCol = playerIndex % playersPerRow;
+
+            const basePlayerX = playerSectionXOffset + playerCol * (playerSectionWidth + 50);
+            const basePlayerY = 100 + playerRow * 250; // Vertical spacing for each row of players
+
+            const player = playerKeyMap[playerId];
+            const playerKeys = player.keys;
+            
+            // Check for click on Player ID (displayName) area
+            // This is the "S" position in the QWE/ASD layout, but it's used for name input
+            const playerIDBtnX = basePlayerX + keyButtonWidth + keyHorizontalSpacing;
+            const playerIDBtnY = basePlayerY + 50 + keyButtonHeight + keyVerticalSpacing; // Corresponds to 'S' key position
+            const playerIDRect = { x: playerIDBtnX, y: playerIDBtnY, width: keyButtonWidth, height: keyButtonHeight };
+            if (isPointInRect(p, playerIDRect)) {
+                currentNameEditing.player = playerId;
+                currentNameEditing.listening = true;
+                console.log(`Listening for new name for ${playerId}`);
+                return; // Stop after finding the clicked area
+            }
+
+            // Map actions to their relative positions on the virtual keyboard
+            const keyLayouts = {
+                attack1: { dx: 0, dy: 50, action: "attack1", actionLabel: playerActions.attack1, labelPos: 'above' }, // Q - Attack 1
+                join:    { dx: keyButtonWidth + keyHorizontalSpacing, dy: 50, action: "join", actionLabel: playerActions.join, labelPos: 'above' }, // W - Jump
+                attack2: { dx: 2 * (keyButtonWidth + keyHorizontalSpacing), dy: 50, action: "attack2", actionLabel: playerActions.attack2, labelPos: 'above' }, // E - Attack 2
+                displayName: { dx: keyButtonWidth + keyHorizontalSpacing, dy: 50 + keyButtonHeight + keyVerticalSpacing, action: "displayName", actionLabel: "Name", labelPos: 'below' }, // S position for Player ID/Name
+                moveLeft: { dx: 0, dy: 50 + keyButtonHeight + keyVerticalSpacing, action: "moveLeft", actionLabel: playerActions.moveLeft, labelPos: 'below' }, // A - Move Left
+                moveRight: { dx: 2 * (keyButtonWidth + keyHorizontalSpacing), dy: 50 + keyButtonHeight + keyVerticalSpacing, action: "moveRight", actionLabel: playerActions.moveRight, labelPos: 'below' }, // D - Move Right
+            };
+
+            for (const keyId in keyLayouts) {
+                const layout = keyLayouts[keyId];
+                const keyBtnX = basePlayerX + layout.dx;
+                const keyBtnY = basePlayerY + layout.dy;
+
+                const keyBtnRect = { x: keyBtnX, y: keyBtnY, width: keyButtonWidth, height: keyButtonHeight };
+
+                if (isPointInRect(p, keyBtnRect)) {
+                    currentKeybindEditing.player = playerId;
+                    currentKeybindEditing.action = layout.action;
+                    currentKeybindEditing.listening = true;
+                    console.log(`Listening for new key for ${playerId} - ${layout.action}`);
+                    return; // Stop after finding the clicked keybind
+                }
+            }
+        });
+
+        // Handle "BACK" button in Keybinding Options
+        const backBtnRect = {x: optionsButtons.back.x, y: optionsButtons.back.y, width: optionsButtons.buttonWidth, height: optionsButtons.buttonHeight};
+        if (isPointInRect(p, backBtnRect)) {
+            gameState = 'PLAYER_COUNT_OPTIONS';
+            currentKeybindEditing.listening = false; // Ensure listening mode is off
+            currentNameEditing.listening = false; // Ensure name listening mode is off
+        }
+    } else if (gameState === 'CHARACTER_SELECTION') {
+      // Check for "START GAME" button click
+      const startGameButtonRect = {
+        x: canvas.width - 120,
+        y: 20,
+        width: 90,
+        height: 60
+      };
+      if (isPointInRect(p, startGameButtonRect)) { 
+        const payload = Object.entries(players).map(([id, p]) => ({
+          id: id,
+          character: p.character,
+          displayName: playerKeyMap[id].keys.displayName
+        }));
+
+        // Filter out players who are still on the center hexagon (haven't picked a character)
+        const activePlayers = payload.filter(player => players[player.id].hex !== centerIndex);
+
+        // All active players must select a character before starting
+        if (activePlayers.length !== maxPlayers) {
+            alert(`All ${maxPlayers} players must select a character to start the game!`);
+            return;
+        }
+
+        sessionStorage.setItem("fighters", JSON.stringify(activePlayers));
+
+        // Dynamically construct the controls object from the current playerKeyMap
+        const controlsToPass = {};
+        Object.keys(playerKeyMap).forEach(playerId => {
+          const player = playerKeyMap[playerId];
+          if (player && player.keys) {
+            controlsToPass[playerId] = {
+              join: player.keys.join,
+              moveLeft: player.keys.moveLeft,
+              moveRight: player.keys.moveRight,
+              attack1: player.keys.attack1,
+              attack2: player.keys.attack2,
+            };
+          }
+        });
+        sessionStorage.setItem("controls", JSON.stringify(controlsToPass));
+
+        // Also save the full playerKeyMap for debug colors in game.html
+        sessionStorage.setItem("playerKeyMap", JSON.stringify(playerKeyMap));
+
+
+        sessionStorage.setItem("playerCount", activePlayers.length);
+        location.href = "game.html";
       }
-    })
+
+
+      // Check for "BACK TO MENU" button click
+      const backToMenuButtonRect = {x: optionsButtons.back.x, y: optionsButtons.back.y, width: optionsButtons.buttonWidth, height: optionsButtons.buttonHeight};
+      if (isPointInRect(p, backToMenuButtonRect)) { 
+          gameState = 'MAIN_MENU';
+      }
+    }
   })
 
+  // Hexagon setup logic (Adopted from user's provided script)
   function setupHexagons() {
     const cx = canvas.width / 2
     const cy = canvas.height / 2
-    const distanceToOuterHex = hexagonRadius * Math.sqrt(3) // Distance from center to center of outer hexagon
+    const dx = hexagonRadius * Math.sqrt(3)
+    const dy = hexagonRadius * 1.5
     allHexagons = [
-      generateHexagon(cx, cy) // Center hexagon (index 0)
+      generateHexagon(cx, cy), // Center hexagon (index 0)
+      generateHexagon(cx + dx, cy),
+      generateHexagon(cx + dx / 2, cy + dy),
+      generateHexagon(cx - dx / 2, cy + dy),
+      generateHexagon(cx - dx, cy),
+      generateHexagon(cx - dx / 2, cy - dy),
+      generateHexagon(cx + dx / 2, cy - dy)
     ]
-    // Generate 6 outer hexagons in a perfect circle around the center
-    for (let i = 0; i < TOTAL_CHARACTER_SLOTS; i++) { // TOTAL_CHARACTER_SLOTS is 6
-        // Angle starts at top-right and goes clockwise for the image provided
-        const angle = (Math.PI / 3) * i - (Math.PI / 6); // Adjust starting angle to match typical hex grid
-        allHexagons.push(generateHexagon(
-            cx + distanceToOuterHex * Math.cos(angle),
-            cy + distanceToOuterHex * Math.sin(angle)
-        ));
-    }
-    console.log(`Generated ${allHexagons.length} hexagons (1 center + ${TOTAL_CHARACTER_SLOTS} outer).`);
   }
 
+  // Hexagon generation logic (Adopted from user's provided script)
   function generateHexagon(cx, cy) {
     const pts = []
     for (let i = 0; i < 6; i++) {
-      // Hexagon points are generated starting from the top point, going clockwise
-      const angle = Math.PI / 3 * i + Math.PI / 2; // Start at top (90 degrees)
-      pts.push({ x: cx + hexagonRadius * Math.cos(angle), y: cy + hexagonRadius * Math.sin(angle) })
+      const angle = Math.PI / 3 * i + Math.PI / 6
+      const x = cx + hexagonRadius * Math.cos(angle)
+      const y = cy + hexagonRadius * Math.sin(angle)
+      pts.push({ x: x, y: y })
     }
     return pts
   }
@@ -329,7 +562,7 @@
     const frameY = (char.row || 0) * frameH
     const cx = (hex[0].x + hex[3].x) / 2
     const cy = (hex[0].y + hex[3].y) / 2
-    const size = hexagonRadius * char.size
+    const size = hexagonRadius * char.size // Uses 'size' from characterSprites
     ctx.save()
     ctx.beginPath()
     ctx.moveTo(hex[0].x, hex[0].y)
@@ -355,12 +588,10 @@
   }
 
   function drawBanners() {
-    const activePlayers = Object.entries(players).filter(([id, p]) => p.hex !== centerIndex);
-    const numActivePlayers = activePlayers.length;
+    const numActivePlayers = Object.keys(players).filter(id => players[id].hex !== centerIndex).length;
     const centerX = canvas.width / 2
     const margin = 260 // Spacing between banners
 
-    // Always display banners for maxPlayers, but only when in CHARACTER_SELECTION state
     for (let i = 1; i <= maxPlayers; i++) { // Loop for P1, P2, ... PmaxPlayers
         const id = `P${i}`;
         const p = players[id];
@@ -377,7 +608,7 @@
         ctx.strokeStyle = "black";
         ctx.fillStyle = "white";
 
-        let titleText = `PLAYER ${i}:`;
+        let titleText = `${playerKeyMap[id]?.keys?.displayName?.toUpperCase() || `PLAYER ${i}`}:`; // Use displayName
         let charText = "CHOOSE A HERO";
 
         if (p && p.hex !== centerIndex) { // If player exists and has chosen a character
@@ -391,64 +622,237 @@
     }
   }
 
-  // Helper function to draw a button with text
-  function drawTextButton(rect, text, isSelected = false) {
-    ctx.font = "24px FightFont";
+  // Function to draw an image button (used for START GAME)
+  function drawImageButton(x, y, width, height) { // Text parameter removed
+      if (!buttonImg.complete) return; // Ensure image is loaded
+      ctx.drawImage(buttonImg, x, y, width, height);
+      // No text drawing here as per user's request
+  }
+
+  // Function to draw a simple button with text (used for BACK TO MENU)
+  function drawSimpleButton(x, y, width, height, text) { // isSelected parameter removed
+      // Button background and border
+      ctx.fillStyle = "rgba(70, 70, 70, 0.9)"; // Darker grey with more opacity
+      ctx.fillRect(x, y, width, height);
+
+      ctx.lineWidth = 4; // Thicker border
+      ctx.strokeStyle = "#CCCCCC"; // Lighter white border
+      ctx.strokeRect(x, y, width, height);
+
+      // Text styling
+      ctx.font = "24px FightFont";
+      ctx.textAlign = "center";
+      ctx.lineWidth = 3; // Thicker text outline
+      ctx.strokeStyle = "#333333"; // Darker text outline
+      ctx.fillStyle = "#EEEEEE"; // Lighter text fill
+
+      ctx.strokeText(text, x + width / 2, y + height / 2 + 8);
+      ctx.fillText(text, x + width / 2, y + height / 2 + 8);
+  }
+
+
+  // Function to draw a polygonal button without fill and without text for main menu
+  function drawPolygonalButton(poly) {
+      if (poly.length === 0) return;
+
+      ctx.beginPath();
+      ctx.moveTo(poly[0].x, poly[0].y);
+      for (let i = 1; i < poly.length; i++) {
+          ctx.lineTo(poly[i].x, poly[i].y);
+      }
+      ctx.closePath();
+
+      ctx.fillStyle = "rgba(0,0,0,0)"; // Fully transparent fill
+      ctx.fill();
+
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(255,255,255,0.1)"; // Very subtle white stroke
+      ctx.stroke();
+
+      // No text drawing calls here as per request
+  }
+
+  function drawDropdown() {
+      // Draw dropdown main box
+      drawSimpleButton(dropdownRect.x, dropdownRect.y, dropdownRect.width, dropdownRect.height, `PLAYERS: ${maxPlayers}`);
+
+      // Draw dropdown options if open
+      if (isPlayerCountDropdownOpen) {
+          const optionHeight = dropdownRect.height;
+          ctx.fillStyle = "rgba(20, 20, 20, 0.9)"; // Darker background for options list
+          ctx.strokeStyle = "white";
+          ctx.lineWidth = 3;
+
+          // Draw a single rectangle for the whole options list
+          ctx.fillRect(dropdownRect.x, dropdownRect.y + dropdownRect.height, dropdownRect.width, optionHeight * playerCountOptions.length);
+          ctx.strokeRect(dropdownRect.x, dropdownRect.y + dropdownRect.height, dropdownRect.width, optionHeight * playerCountOptions.length);
+
+          for (let i = 0; i < playerCountOptions.length; i++) {
+              const optionText = `${playerCountOptions[i]} PLAYERS`;
+              const optionY = dropdownRect.y + dropdownRect.height + (i * optionHeight);
+
+              // Draw individual option text
+              ctx.font = "24px FightFont";
+              ctx.textAlign = "center";
+              ctx.lineWidth = 2;
+              ctx.strokeStyle = "black";
+              ctx.fillStyle = "white";
+              ctx.strokeText(optionText, dropdownRect.x + dropdownRect.width / 2, optionY + optionHeight / 2 + 8);
+              ctx.fillText(optionText, dropdownRect.x + dropdownRect.width / 2, optionY + optionHeight / 2 + 8);
+          }
+      }
+  }
+
+  function drawKeybindingOptions() {
+    ctx.fillStyle = "rgba(0,0,0,0.7)"; // Semi-transparent black overlay
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.font = "36px FightFont";
     ctx.textAlign = "center";
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = "black";
     ctx.fillStyle = "white";
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 5;
+    ctx.strokeText("KEYBIND CUSTOMIZATION", canvas.width / 2, 50);
+    ctx.fillText("KEYBIND CUSTOMIZATION", canvas.width / 2, 50);
 
-    ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
-    ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-    ctx.strokeText(text, rect.x + rect.width / 2, rect.y + rect.height / 2 + 8);
-    ctx.fillText(text, rect.x + rect.width / 2, rect.y + rect.height / 2 + 8);
+    const keyButtonWidth = 80; // Increased width to accommodate longer gamepad names
+    const keyButtonHeight = 50;
+    const keyHorizontalSpacing = 10;
+    const keyVerticalSpacing = 10;
+    const playerSectionWidth = keyButtonWidth * 3 + keyHorizontalSpacing * 2; // Adjusted width for a player's key layout
+    const playersPerRow = Math.floor(canvas.width / (playerSectionWidth + 50));
+    const playerSectionXOffset = (canvas.width - (playersPerRow * (playerSectionWidth + 50))) / 2;
 
-    if (isSelected) {
-        ctx.fillStyle = "yellow";
-        ctx.fillRect(rect.x, rect.y - 5, rect.width, 5); // A small bar above the selected button
-    }
+    Object.keys(playerKeyMap).forEach((playerId, playerIndex) => {
+      const playerRow = Math.floor(playerIndex / playersPerRow);
+      const playerCol = playerIndex % playersPerRow;
+
+      const basePlayerX = playerSectionXOffset + playerCol * (playerSectionWidth + 50);
+      const basePlayerY = 100 + playerRow * 250; // Vertical spacing for each row of players
+
+      const player = playerKeyMap[playerId];
+      const playerKeys = player.keys;
+      
+      // Draw Player ID (e.g., P1, P2) as static text above the keybinds
+      ctx.font = "28px FightFont";
+      ctx.textAlign = "center";
+      ctx.fillStyle = player.color || "white";
+      ctx.strokeStyle = "black";
+      ctx.lineWidth = 4;
+      ctx.strokeText(playerId, basePlayerX + keyButtonWidth + keyHorizontalSpacing, basePlayerY);
+      ctx.fillText(playerId, basePlayerX + keyButtonWidth + keyHorizontalSpacing, basePlayerY);
+
+      // Define relative positions for the keys based on the "Q W E / A S D" layout
+      const keyLayouts = {
+          attack1: { dx: 0, dy: 50, action: "attack1", actionLabel: playerActions.attack1, labelPos: 'above' }, // Q - Attack 1
+          join:    { dx: keyButtonWidth + keyHorizontalSpacing, dy: 50, action: "join", actionLabel: playerActions.join, labelPos: 'above' }, // W - Jump
+          attack2: { dx: 2 * (keyButtonWidth + keyHorizontalSpacing), dy: 50, action: "attack2", actionLabel: playerActions.attack2, labelPos: 'above' }, // E - Attack 2
+          displayName: { dx: keyButtonWidth + keyHorizontalSpacing, dy: 50 + keyButtonHeight + keyVerticalSpacing, action: "displayName", actionLabel: "Name", labelPos: 'below' }, // S position for Player ID/Name
+          moveLeft: { dx: 0, dy: 50 + keyButtonHeight + keyVerticalSpacing, action: "moveLeft", actionLabel: playerActions.moveLeft, labelPos: 'below' }, // A - Move Left
+          moveRight: { dx: 2 * (keyButtonWidth + keyHorizontalSpacing), dy: 50 + keyButtonHeight + keyVerticalSpacing, action: "moveRight", actionLabel: playerActions.moveRight, labelPos: 'below' }, // D - Move Right
+      };
+
+      for (const keyId in keyLayouts) {
+        const layout = keyLayouts[keyId];
+        const keyBtnX = basePlayerX + layout.dx;
+        const keyBtnY = basePlayerY + layout.dy;
+
+        ctx.fillStyle = "rgba(50, 50, 50, 0.8)";
+        ctx.fillRect(keyBtnX, keyBtnY, keyButtonWidth, keyButtonHeight);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "white";
+        ctx.strokeRect(keyBtnX, keyBtnY, keyButtonWidth, keyButtonHeight);
+
+        // Draw the assigned key or placeholder
+        ctx.font = "18px FightFont"; // Adjusted font size for key text
+        ctx.textAlign = "center";
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "black";
+        ctx.fillStyle = "white";
+
+        let keyDisplayText = "";
+        if (layout.action === "displayName") {
+            keyDisplayText = playerKeys.displayName.toUpperCase();
+            if (currentNameEditing.listening && currentNameEditing.player === playerId) {
+                keyDisplayText = keyDisplayText + (Math.floor(performance.now() / 500) % 2 === 0 ? "_" : ""); // Blinking cursor
+            }
+        } else {
+            keyDisplayText = playerKeys[layout.action]?.toUpperCase() || "UNASSIGNED";
+            if (currentKeybindEditing.listening && currentKeybindEditing.player === playerId && currentKeybindEditing.action === layout.action) {
+                keyDisplayText = "..."; // Show listening state
+            }
+        }
+        ctx.strokeText(keyDisplayText, keyBtnX + keyButtonWidth / 2, keyBtnY + keyButtonHeight / 2 + 8);
+        ctx.fillText(keyDisplayText, keyBtnX + keyButtonWidth / 2, keyBtnY + keyButtonHeight / 2 + 8);
+
+        // Draw action label (above or below)
+        ctx.font = "16px FightFont";
+        ctx.fillStyle = "#AAA";
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 1;
+        let labelY;
+        if (layout.labelPos === 'above') {
+            labelY = keyBtnY - 10;
+        } else { // 'below'
+            labelY = keyBtnY + keyButtonHeight + 20;
+        }
+        ctx.strokeText(layout.actionLabel, keyBtnX + keyButtonWidth / 2, labelY); // Stroke first for outline
+        ctx.fillText(layout.actionLabel, keyBtnX + keyButtonWidth / 2, labelY);
+      }
+    });
+
+    // Draw "BACK" button
+    drawSimpleButton(optionsButtons.back.x, optionsButtons.back.y, optionsButtons.buttonWidth, optionsButtons.buttonHeight, optionsButtons.back.label);
   }
 
 
   function loop(ts = 0) {
+    // Background animation
     bgX += bgSpeed
     if (bgX >= canvas.width) bgX = 0
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.drawImage(bgImage, -bgX, 0, canvas.width, canvas.height)
     ctx.drawImage(bgImage, canvas.width - bgX, 0, canvas.width, canvas.height)
-    ctx.imageSmoothingEnabled = false // Keep this for pixel art
+    
 
     if (gameState === 'MAIN_MENU') {
-        if (mainMenuButtons.play.img.complete) {
-            // The image is typically drawn from its top-left corner, adjust position to center it
-            // Assuming buttonsImage is 600x600 and covers the main "Play" area
-            const imgW = 600;
+        // Draw the main "Play" button graphic with adjusted position
+        if (buttonsImage.complete) {
+            const imgW = 600; 
             const imgH = 600;
-            const imgX = canvas.width / 2 - imgW / 2;
-            const imgY = canvas.height / 2 - imgH / 2;
-            ctx.drawImage(mainMenuButtons.play.img, imgX, imgY, imgW, imgH);
+            const imgX = (canvas.width / 2 - imgW / 2) + 15; // x offset by +15
+            const imgY = 0; // Constant Y position
+            ctx.drawImage(buttonsImage, imgX, imgY, imgW, imgH);
         }
-        // Draw "OPTIONS" button
-        drawTextButton(mainMenuButtons.options.rect, mainMenuButtons.options.text);
+
+        // Draw the polygonal buttons (no visible fill/strong stroke for trigger zones, no text)
+        drawPolygonalButton(mainMenuButtons.play.poly);
+        drawPolygonalButton(mainMenuButtons.options.poly);
+        drawPolygonalButton(mainMenuButtons.how.poly);
+
 
     } else if (gameState === 'PLAYER_COUNT_OPTIONS') {
-        // Draw player count selection buttons
-        playerCountOptionsButtons.playerCounts.forEach(btn => {
-            drawTextButton(btn.rect, btn.label, btn.value === maxPlayers);
-        });
-        // Draw "BACK" button
-        drawTextButton(playerCountOptionsButtons.back.rect, playerCountOptionsButtons.back.text);
+        drawDropdown(); // Draw the dropdown menu
+        
+        // Draw "RESET KEYBINDS" button
+        drawSimpleButton(optionsButtons.resetKeybinds.x, optionsButtons.resetKeybinds.y, optionsButtons.buttonWidth, optionsButtons.buttonHeight, optionsButtons.resetKeybinds.label);
+        // Draw "KEYBINDS" button
+        drawSimpleButton(optionsButtons.keybinds.x, optionsButtons.keybinds.y, optionsButtons.buttonWidth, optionsButtons.buttonHeight, optionsButtons.keybinds.label);
+        // Draw "BACK" button using drawSimpleButton (no image)
+        drawSimpleButton(optionsButtons.back.x, optionsButtons.back.y, optionsButtons.buttonWidth, optionsButtons.buttonHeight, optionsButtons.back.label);
 
-    } else if (gameState === 'CHARACTER_SELECTION') {
+    } else if (gameState === 'KEYBINDING_OPTIONS') {
+        drawKeybindingOptions();
+    }
+    else if (gameState === 'CHARACTER_SELECTION') {
       if (ts - spriteTimer > spriteDelay) {
         spriteTimer = ts
         spriteIndex++
       }
 
       allHexagons.forEach((hex, i) => {
-        if (i !== centerIndex) { // Draw outer hexagons
+        if (i !== centerIndex) { // Draw outer hexagons (character slots)
           drawHex(hex, "black")
           drawCharacter(spriteImages[i - 1], hex) // Use i-1 for spriteImages index
           Object.entries(players).forEach(([id, p]) => {
@@ -469,16 +873,22 @@
         }
       })
 
-      drawBanners() // Draw banners only in character selection state
+      drawBanners() // Draw banners for joined players
 
-      // Draw "START" button (top right)
-      ctx.drawImage(buttonImg, canvas.width - 120, 20, 90, 60)
+      // Draw "START GAME" button (top right) using image button with NO text drawn over it
+      drawImageButton(canvas.width - 120, 20, 90, 60); // Text parameter removed
+
+      // Draw "BACK TO MENU" button (bottom left) using simple button with text (no image)
+      drawSimpleButton(optionsButtons.back.x, optionsButtons.back.y, optionsButtons.buttonWidth, optionsButtons.buttonHeight, optionsButtons.back.label);
     }
 
     requestAnimationFrame(loop)
   }
 
-  requestAnimationFrame(loop)
+  // Set imageSmoothingEnabled at the very end of the initial script execution
+  ctx.imageSmoothingEnabled = false;
+
+  requestAnimationFrame(loop) 
 })()
 </script>
 </body>
